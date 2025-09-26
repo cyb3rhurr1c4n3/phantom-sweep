@@ -28,7 +28,7 @@
 
 ✅ Ping Scan: netprobe -sn 192.168.1.0/24
 
-⚠️ TCP SYN Scan: netprobe -sS 192.168.1.1 (CẦN ROOT - bonus)
+⚠️ TCP SYN Scan: netprobe -sS 192.168.1.1 (CẦN ROOT)
 
 ```
 
@@ -112,22 +112,6 @@ Version detection nâng cao
 
 ```
 
-
-
-#### 8. **User Interface**
-
-```bash
-
-✅ CLI với progress bar
-
-✅ Colorized output
-
-✅ Interactive mode
-
-```
-
-
-
 #### 9. **Basic Scripts** (3-5 scripts đơn giản)
 
 ```bash
@@ -144,12 +128,11 @@ Version detection nâng cao
 
 ```
 
-#### 10. **Os Detection
+#### 10. **Os Detection**
 
 ```bash
 
 Phát hiện HĐH           nmap -O <target>                nmap -O 192.168.1.1
 
-Đoán HĐH (mạnh)         nmap -O --osscan-guess <target> nmap -O --osscan-guess 192.168.1.1
 
 ```
