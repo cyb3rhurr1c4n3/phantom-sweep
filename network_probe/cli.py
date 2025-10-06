@@ -1,6 +1,9 @@
 import argparse
 import sys
 import os
+import time
+from dataclasses import dataclass
+from typing import List, Optional
 
 try:
     import pyfiglet
@@ -10,6 +13,30 @@ except ImportError:
     print("Error: Missing required packages. Install with:")
     print("pip install pyfiglet colorama")
     sys.exit(1)
+
+
+@dataclass
+class ScanContext:
+    """Represents the scan configuration context"""
+    targets: List[str]
+    scan_type: str
+    ports: Optional[str]
+    scan_all_ports: bool
+    fast_scan: bool
+    service_version: bool
+    os_detection: bool
+    timing: int
+    threads: int
+    timeout: float
+    output_normal: Optional[str]
+    output_xml: Optional[str]
+    output_json: Optional[str]
+    output_html: Optional[str]
+    show_open_only: bool
+    verbose: bool
+    debug: bool
+    exclude: Optional[List[str]]
+    input_list: Optional[str]
 
 
 class SkyViewCLI:
@@ -329,6 +356,31 @@ For more examples, use: skyview -H
     
     def validate_args(self, args):
         """Validate parsed arguments"""
+        # Ensure at least one target is provided or input list is specified
+        if not args.targets and not args.input_list and not args.list_targets:
+            print(f"{Fore.RED}[!] Error: No targets specified. Provide IP(s), domain(s), or use -iL{Style.RESET_ALL}")
+            return False
+        
+        # Check if SYN scan is requested without root privileges
+        if args.syn_scan and not self._is_root():
+            print(f"{Fore.RED}[!] Error: SYN scan (-sS) requires root privileges{Style.RESET_ALL}")
+            return False
+        
+        # Validate thread count
+        if args.thread <= 0:
+            print(f"{Fore.RED}[!] Error: Thread count must be positive{Style.RESET_ALL}")
+            return False
+        
+        # Validate timeout
+        if args.timeout <= 0:
+            print(f"{Fore.RED}[!] Error: Timeout must be positive{Style.RESET_ALL}")
+            return False
+        
+        # Validate input file exists if provided
+        if args.input_list and not os.path.isfile(args.input_list):
+            print(f"{Fore.RED}[!] Error: Input file '{args.input_list}' does not exist{Style.RESET_ALL}")
+            return False
+        
         return True
     
     def _is_root(self):
@@ -338,18 +390,94 @@ For more examples, use: skyview -H
         except AttributeError:
             return False
     
+    def _get_scan_type(self, args):
+        """Determine the scan type based on arguments"""
+        if args.ping_scan:
+            return "ping"
+        elif args.ack_ping:
+            return "ack"
+        elif args.syn_scan:
+            return "syn"
+        elif args.tcp_connect:
+            return "tcp"
+        elif args.list_targets:
+            return "list"
+        else:
+            return "tcp"  # Default to TCP connect scan
+    
     def build_context(self, args):
         """Convert CLI args to Context object for engine"""
-        return None
-    
-    def _get_scan_type(self, args):
-        pass
+        # Load targets from file if -iL is specified
+        targets = args.targets
+        if args.input_list:
+            try:
+                with open(args.input_list, 'r') as f:
+                    targets.extend([line.strip() for line in f if line.strip()])
+            except Exception as e:
+                print(f"{Fore.RED}[!] Error reading input file: {e}{Style.RESET_ALL}")
+                sys.exit(1)
+        
+        # Remove duplicates and empty targets
+        targets = list(set([t for t in targets if t]))
+        
+        return ScanContext(
+            targets=targets,
+            scan_type=self._get_scan_type(args),
+            ports=args.ports,
+            scan_all_ports=args.scan_all_ports,
+            fast_scan=args.fast,
+            service_version=args.service_version,
+            os_detection=args.os_detection,
+            timing=args.timing if args.timing is not None else 3,  # Default to normal timing
+            threads=args.thread,
+            timeout=args.timeout,
+            output_normal=args.output_normal,
+            output_xml=args.output_xml,
+            output_json=args.output_json,
+            output_html=args.output_html,
+            show_open_only=args.open,
+            verbose=args.verbose,
+            debug=args.debug,
+            exclude=args.exclude,
+            input_list=args.input_list
+        )
     
     def display_config(self, context):
-        pass
+        """Display the scan configuration"""
+        if context.verbose or context.debug:
+            print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}SCAN CONFIGURATION{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
+            
+            print(f"{Fore.YELLOW}Targets:{Style.RESET_ALL} {', '.join(context.targets) or 'None'}")
+            print(f"{Fore.YELLOW}Scan Type:{Style.RESET_ALL} {context.scan_type.upper()}")
+            print(f"{Fore.YELLOW}Ports:{Style.RESET_ALL} {self._get_port_description(context)}")
+            print(f"{Fore.YELLOW}Service Detection:{Style.RESET_ALL} {'Enabled' if context.service_version else 'Disabled'}")
+            print(f"{Fore.YELLOW}OS Detection:{Style.RESET_ALL} {'Enabled' if context.os_detection else 'Disabled'}")
+            print(f"{Fore.YELLOW}Timing Template:{Style.RESET_ALL} T{context.timing}")
+            print(f"{Fore.YELLOW}Threads:{Style.RESET_ALL} {context.threads}")
+            print(f"{Fore.YELLOW}Timeout:{Style.RESET_ALL} {context.timeout} seconds")
+            print(f"{Fore.YELLOW}Output Files:{Style.RESET_ALL}")
+            print(f"  Normal: {context.output_normal or 'None'}")
+            print(f"  XML: {context.output_xml or 'None'}")
+            print(f"  JSON: {context.output_json or 'None'}")
+            print(f"  HTML: {context.output_html or 'None'}")
+            print(f"{Fore.YELLOW}Show Open Only:{Style.RESET_ALL} {'Enabled' if context.show_open_only else 'Disabled'}")
+            print(f"{Fore.YELLOW}Verbose:{Style.RESET_ALL} {'Enabled' if context.verbose else 'Disabled'}")
+            print(f"{Fore.YELLOW}Debug:{Style.RESET_ALL} {'Enabled' if context.debug else 'Disabled'}")
+            print(f"{Fore.YELLOW}Excluded Targets:{Style.RESET_ALL} {', '.join(context.exclude) if context.exclude else 'None'}")
+            print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
     
     def _get_port_description(self, context):
-        pass
+        """Get a description of the ports to be scanned"""
+        if context.scan_all_ports:
+            return "All ports (1-65535)"
+        elif context.fast_scan:
+            return "Top 100 common ports"
+        elif context.ports:
+            return context.ports
+        else:
+            return "Default ports (80, 443)"
     
     def display_results(self, results):
         """Display scan results - called by engine after scan"""
@@ -361,11 +489,109 @@ For more examples, use: skyview -H
         print(f"{Fore.CYAN}SCAN RESULTS{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
         
+        for target, data in results.items():
+            print(f"{Fore.GREEN}Host: {target}{Style.RESET_ALL}")
+            if 'ports' in data:
+                for port, info in data['ports'].items():
+                    if info['state'] == 'open' or not self.args.open:
+                        print(f"  Port {port}/tcp: {info['state']} ({info.get('service', 'unknown')})")
+            if 'os' in data and self.args.os_detection:
+                print(f"  OS: {data['os']}")
+            print()
+        
         print(f"{Fore.GREEN}[✓] Scan completed successfully{Style.RESET_ALL}")
         print(f"    Results are ready for processing by report plugins\n")
     
     def run(self):
-        pass
+        """Main execution method"""
+        # Build and parse arguments
+        self.build_parser()
+        self.args = self.parser.parse_args()
+        
+        # Show advanced help if requested
+        if self.args.advanced_help:
+            self.print_advanced_help()
+            return 0
+        
+        # Show banner
+        self.print_banner()
+        
+        # Validate arguments
+        if not self.validate_args(self.args):
+            return 1
+        
+        # If list-targets is specified, just print targets and exit
+        if self.args.list_targets:
+            context = self.build_context(self.args)
+            print(f"{Fore.CYAN}Targets to be scanned:{Style.RESET_ALL}")
+            for target in context.targets:
+                print(f"  {target}")
+            return 0
+        
+        # Build context
+        context = self.build_context(self.args)
+        
+        # Display configuration
+        self.display_config(context)
+        
+        # Simulate scan (replace with actual scan engine logic)
+        if context.debug:
+            print(f"{Fore.YELLOW}[DEBUG] Starting simulated scan...{Style.RESET_ALL}")
+        
+        # Mock scan results for demonstration
+        results = {}
+        for target in context.targets:
+            if context.scan_type == "ping":
+                results[target] = {"state": "up"}
+            else:
+                ports = {}
+                # Simulate scanning ports based on configuration
+                port_list = [80, 443]  # Default ports
+                if context.scan_all_ports:
+                    port_list = [21, 22, 80, 443, 8080]  # Example subset
+                elif context.fast_scan:
+                    port_list = [80, 443, 22, 21]  # Example top ports
+                elif context.ports:
+                    port_list = []
+                    for part in context.ports.split(','):
+                        if '-' in part:
+                            start, end = map(int, part.split('-'))
+                            port_list.extend(range(start, end + 1))
+                        else:
+                            port_list.append(int(part))
+                
+                for port in port_list:
+                    ports[port] = {
+                        "state": "open" if port in [80, 443] else "closed",
+                        "service": "http" if port in [80, 443] else "unknown"
+                    }
+                
+                results[target] = {
+                    "ports": ports,
+                    "os": "Linux (simulated)" if context.os_detection else None
+                }
+        
+        # Simulate scan duration
+        time.sleep(1)
+        
+        # Display results
+        self.display_results(results)
+        
+        # Save output to files if specified
+        if context.output_normal:
+            with open(context.output_normal, 'w') as f:
+                for target, data in results.items():
+                    f.write(f"Host: {target}\n")
+                    if 'ports' in data:
+                        for port, info in data['ports'].items():
+                            if info['state'] == 'open' or not context.show_open_only:
+                                f.write(f"  Port {port}/tcp: {info['state']} ({info.get('service', 'unknown')})\n")
+                    if 'os' in data and context.os_detection:
+                        f.write(f"  OS: {data['os']}\n")
+                    f.write("\n")
+        
+        return 0
+
 
 def main():
     """Entry point"""
