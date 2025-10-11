@@ -5,6 +5,8 @@ import time
 from dataclasses import dataclass
 from typing import List, Optional
 
+from network_probe.core.context import ScanContext
+
 try:
     import pyfiglet
     from colorama import Fore, Style, init
@@ -13,31 +15,6 @@ except ImportError:
     print("Error: Missing required packages. Install with:")
     print("pip install pyfiglet colorama")
     sys.exit(1)
-
-
-@dataclass
-class ScanContext:
-    """Represents the scan configuration context"""
-    targets: List[str]
-    scan_type: str
-    ports: Optional[str]
-    scan_all_ports: bool
-    fast_scan: bool
-    service_version: bool
-    os_detection: bool
-    timing: int
-    threads: int
-    timeout: float
-    output_normal: Optional[str]
-    output_xml: Optional[str]
-    output_json: Optional[str]
-    output_html: Optional[str]
-    show_open_only: bool
-    verbose: bool
-    debug: bool
-    exclude: Optional[List[str]]
-    input_list: Optional[str]
-
 
 class SkyViewCLI:
     """CLI Interface - Only handles parsing and display"""

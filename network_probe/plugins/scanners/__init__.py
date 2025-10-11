@@ -1,2 +1,3 @@
-from .tcp_scanner import *
-from .tcp_syn_scan import *
+from .tcp_scanner import TCPScanner
+from .syn_scanner import SynScanner
+from .ping_scanner import PingScaner
