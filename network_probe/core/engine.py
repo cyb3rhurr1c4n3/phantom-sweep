@@ -1,7 +1,7 @@
 
 from typing import Dict
 from network_probe.core.context import ScanContext
-from network_probe.plugins.scanners.ping_scanner import PingScaner
+from network_probe.plugins.scanners.ping_scanner import PingScannerAsync
 from network_probe.plugins.scanners.syn_scanner import SynScanner
 from network_probe.plugins.scanners.tcp_scanner import TCPScanner
 
@@ -13,7 +13,7 @@ class ScanEngine:
         self.scanner_map={
             "tcp":TCPScanner,
             "syn":SynScanner,
-            "ping":PingScaner
+            "ping":PingScannerAsync
         }
     def run_scan(self)-> Dict[any,str]:
         scan_type=self.context.scan_type

@@ -1,4 +1,5 @@
 import argparse
+import ipaddress
 import sys
 import os
 import time
@@ -382,7 +383,28 @@ For more examples, use: skyview -H
             return "list"
         else:
             return "tcp"  # Default to TCP connect scan
-    
+    def build_targets(self,targets: List[str]) -> List[str]:
+        result=list()
+        tmp=""
+        for target in targets:
+            if '/' in target:
+                try:
+                    network = ipaddress.ip_network(target, strict=False)
+                    result.extend([str(ip) for ip in network.hosts()])
+                except ValueError:
+                    result.append(target)  # Nếu không hợp lệ, giữ nguyên
+                continue
+            parts=target.split('.')
+            if '-' in parts[3]:
+                start,end = map(int,parts[3].split('-'))
+                for i in range(start,end+1):
+                    tmp= f"{parts[0]}.{parts[1]}.{parts[2]}.{i}"
+                    result.append(tmp)
+            else:
+                result.append(target)
+        return result
+
+
     def build_context(self, args):
         """Convert CLI args to Context object for engine"""
         # Load targets from file if -iL is specified
@@ -397,6 +419,8 @@ For more examples, use: skyview -H
         
         # Remove duplicates and empty targets
         targets = list(set([t for t in targets if t]))
+        targets=self.build_targets(targets) 
+        print(targets)
         
         return ScanContext(
             targets=targets,
@@ -469,6 +493,8 @@ For more examples, use: skyview -H
         
         for target, data in results.items():
             print(f"{Fore.GREEN}Host: {target}{Style.RESET_ALL}")
+            if 'state' in data:
+                print(f"State:{data['state']}")
             if 'ports' in data:
                 for port, info in data['ports'].items():
                     if info['state'] == 'open' or not self.args.open:
