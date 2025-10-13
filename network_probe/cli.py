@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from network_probe.core.context import ScanContext
+from network_probe.plugins.manager import ScanManagr
 
 try:
     import pyfiglet
@@ -515,57 +516,13 @@ For more examples, use: skyview -H
         if context.debug:
             print(f"{Fore.YELLOW}[DEBUG] Starting simulated scan...{Style.RESET_ALL}")
         
-        # Mock scan results for demonstration
         results = {}
-        for target in context.targets:
-            if context.scan_type == "ping":
-                results[target] = {"state": "up"}
-            else:
-                ports = {}
-                # Simulate scanning ports based on configuration
-                port_list = [80, 443]  # Default ports
-                if context.scan_all_ports:
-                    port_list = [21, 22, 80, 443, 8080]  # Example subset
-                elif context.fast_scan:
-                    port_list = [80, 443, 22, 21]  # Example top ports
-                elif context.ports:
-                    port_list = []
-                    for part in context.ports.split(','):
-                        if '-' in part:
-                            start, end = map(int, part.split('-'))
-                            port_list.extend(range(start, end + 1))
-                        else:
-                            port_list.append(int(part))
-                
-                for port in port_list:
-                    ports[port] = {
-                        "state": "open" if port in [80, 443] else "closed",
-                        "service": "http" if port in [80, 443] else "unknown"
-                    }
-                
-                results[target] = {
-                    "ports": ports,
-                    "os": "Linux (simulated)" if context.os_detection else None
-                }
-        
-        # Simulate scan duration
-        time.sleep(1)
-        
+        manager=ScanManagr(context)
+        results=manager.run()
+        print(results)
         # Display results
         self.display_results(results)
         
-        # Save output to files if specified
-        if context.output_normal:
-            with open(context.output_normal, 'w') as f:
-                for target, data in results.items():
-                    f.write(f"Host: {target}\n")
-                    if 'ports' in data:
-                        for port, info in data['ports'].items():
-                            if info['state'] == 'open' or not context.show_open_only:
-                                f.write(f"  Port {port}/tcp: {info['state']} ({info.get('service', 'unknown')})\n")
-                    if 'os' in data and context.os_detection:
-                        f.write(f"  OS: {data['os']}\n")
-                    f.write("\n")
         
         return 0
 

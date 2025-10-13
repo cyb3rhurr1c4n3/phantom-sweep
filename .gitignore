@@ -1,0 +1,14 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# env
+.env
+network_probe/.env
+
+# editor / os
+.vscode/
+.idea/
+.DS_Store

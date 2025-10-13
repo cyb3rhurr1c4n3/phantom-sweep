@@ -26,12 +26,12 @@ class ScanEngine:
         
         scanner=scanner_class()
         result={}
-
+        print("DEBUG: context.targets =", repr(self.context.targets))
         for target in self.context.targets:
             try:
                 result_data=scanner.scan(target,self.context)
                 result[target]=result_data
             except Exception as e:
                 print(f"[Error] Lỗi {e}")
-                result[target]={"error",str(e)}
+                result[target]={"error":str(e)}
         return result

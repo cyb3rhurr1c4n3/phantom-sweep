@@ -36,7 +36,6 @@ class ScanManagr():
             NormalReporter().save(results,self.context.output_normal)
         elif self.context.output_xml:
             XmlReporter().save(results,self.context.output_xml)
-        else:
-            print(f"[Error] Vui lòng chọn kiểu Report")
+            
 
         
