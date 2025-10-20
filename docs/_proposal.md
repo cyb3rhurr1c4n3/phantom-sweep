@@ -21,6 +21,7 @@ PhantomSweep - A fast, lightweight and scalable network security scanner
 -   **Kết quả đầu ra**: Text dễ đọc, JSON cho máy móc xử lý, Nmap-XML/CSV (Nâng cao)
 -   **Plugin engine**: Cho phép viết plugin nhỏ để mở rộng khả năng phát hiện lỗ hổng/dịch vụ.
 -   **Tùy chọn evasive**: rate-limit, randomize host order, jitter,... (nâng cao)
+-   **Tích hợp AI**: tích hợp để khiến app trở nên dynamic, tích hợp vào OS fingerprinting, service and version detection, optimize time wait, rate-limit,...
 -   **Docker testbed** đi kèm để demo và kiểm thử (nâng cao)
 
 ## Sản phẩm
