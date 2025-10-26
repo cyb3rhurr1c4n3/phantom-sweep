@@ -2,7 +2,7 @@ import asyncio
 import sys
 from typing import List, Dict, Union
 from network_probe.core.context import ScanContext
-from network_probe.plugins.base import BaseScanner
+from network_probe.plugins.base_plugin import BaseScanner
 
 
 class PingScannerAsync(BaseScanner):

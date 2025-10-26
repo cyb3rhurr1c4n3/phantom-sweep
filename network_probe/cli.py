@@ -5,9 +5,8 @@ import os
 import time
 from dataclasses import dataclass
 from typing import List, Optional
-
 from network_probe.core.context import ScanContext
-from network_probe.plugins.manager import ScanManagr
+from network_probe.plugins.plugin_manager import PluginManager, ScanManager
 
 try:
     import pyfiglet
@@ -24,8 +23,11 @@ class SkyViewCLI:
     VERSION = "1.0.0"
     
     def __init__(self):
-        self.parser = None
+        self.parser = argparse.ArgumentParser(...)
         self.args = None
+
+        self.manager=PluginManager()
+
         
     def print_banner(self):
         """Display ASCII banner and information"""
@@ -114,20 +116,7 @@ class SkyViewCLI:
     
     def build_parser(self):
         """Build argument parser"""
-        parser = argparse.ArgumentParser(
-            description="SkyView - Lightweight Network Reconnaissance Tool",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-  skyview 192.168.1.1                      # Basic scan
-  skyview -p 80,443 192.168.1.0/24        # Scan specific ports
-  skyview -F -sV example.com              # Fast scan with service detection
-  skyview -sS -p- 192.168.1.1             # SYN scan all ports
-
-For more examples, use: skyview -H
-            """,
-            add_help=True
-        )
+        parser = self.parser
         
         # Help and Version
         parser.add_argument(
@@ -165,184 +154,15 @@ For more examples, use: skyview -H
             help="Exclude specified IPs/ranges/CIDRs from scan"
         )
         
-        # Scan Techniques
-        scan_group = parser.add_argument_group('Scan Techniques')
-        scan_group.add_argument(
-            "-sT", "--tcp-connect",
-            action="store_true",
-            help="TCP Connect scan (default, no root required)"
-        )
-        
-        scan_group.add_argument(
-            "-sS", "--syn-scan",
-            action="store_true",
-            help="TCP SYN scan (stealth, requires root)"
-        )
-        
-        scan_group.add_argument(
-            "-sn", "--ping-scan",
-            action="store_true",
-            help="Ping scan only (no port scanning)"
-        )
-        
-        scan_group.add_argument(
-            "-PA", "--ack-ping",
-            action="store_true",
-            help="TCP ACK ping for host discovery"
-        )
-        
-        scan_group.add_argument(
-            "-sL", "--list-targets",
-            action="store_true",
-            help="List targets without scanning"
-        )
-        
-        # Port Specification
-        port_group = parser.add_argument_group('Port Specification')
-        port_group.add_argument(
-            "-p", "--ports",
-            metavar="PORTS",
-            help="Ports to scan (e.g., 80,443 or 1-1000)"
-        )
-        
-        port_group.add_argument(
-            "-p-", "--all-ports",
-            action="store_true",
-            dest="scan_all_ports",
-            help="Scan all 65535 ports"
-        )
-        
-        port_group.add_argument(
-            "-F", "--fast",
-            action="store_true",
-            help="Fast scan (top 100 most common ports)"
-        )
-        
-        # Service/Version Detection
-        detect_group = parser.add_argument_group('Service/Version Detection')
-        detect_group.add_argument(
-            "-sV", "--service-version",
-            action="store_true",
-            help="Probe open ports to determine service/version info"
-        )
-        
-        detect_group.add_argument(
-            "-O", "--os-detection",
-            action="store_true",
-            help="Enable OS detection"
-        )
-        
-        # Timing and Performance
-        timing_group = parser.add_argument_group('Timing and Performance')
-        
-        # Timing templates (mutually exclusive)
-        timing_templates = timing_group.add_mutually_exclusive_group()
-        timing_templates.add_argument(
-            "-T0", "--timing-paranoid",
-            action="store_const", const=0, dest="timing",
-            help="Paranoid (slowest, IDS evasion)"
-        )
-        timing_templates.add_argument(
-            "-T1", "--timing-sneaky",
-            action="store_const", const=1, dest="timing",
-            help="Sneaky"
-        )
-        timing_templates.add_argument(
-            "-T2", "--timing-polite",
-            action="store_const", const=2, dest="timing",
-            help="Polite"
-        )
-        timing_templates.add_argument(
-            "-T3", "--timing-normal",
-            action="store_const", const=3, dest="timing",
-            help="Normal (default)"
-        )
-        timing_templates.add_argument(
-            "-T4", "--timing-aggressive",
-            action="store_const", const=4, dest="timing",
-            help="Aggressive"
-        )
-        timing_templates.add_argument(
-            "-T5", "--timing-insane",
-            action="store_const", const=5, dest="timing",
-            help="Insane (fastest)"
-        )
-        
-        timing_group.add_argument(
-            "--thread",
-            type=int,
-            default=50,
-            metavar="NUM",
-            help="Number of parallel threads (default: 50)"
-        )
-        
-        timing_group.add_argument(
-            "--timeout",
-            type=float,
-            default=1.0,
-            metavar="SEC",
-            help="Timeout in seconds (default: 1.0)"
-        )
-        
-        # Output Options
-        output_group = parser.add_argument_group('Output Options')
-        output_group.add_argument(
-            "-oN", "--output-normal",
-            metavar="FILE",
-            help="Save normal output to file"
-        )
-        
-        output_group.add_argument(
-            "-oX", "--output-xml",
-            metavar="FILE",
-            help="Save XML output to file"
-        )
-        
-        output_group.add_argument(
-            "-oJ", "--output-json",
-            metavar="FILE",
-            help="Save JSON output to file"
-        )
-        
-        output_group.add_argument(
-            "-oH", "--output-html",
-            metavar="FILE",
-            help="Save HTML report to file"
-        )
-        
-        output_group.add_argument(
-            "--open",
-            action="store_true",
-            help="Show only open ports/hosts"
-        )
-        
-        # Miscellaneous
-        misc_group = parser.add_argument_group('Miscellaneous')
-        misc_group.add_argument(
-            "--verbose",
-            action="store_true",
-            help="Increase output verbosity"
-        )
-        
-        misc_group.add_argument(
-            "--debug",
-            action="store_true",
-            help="Enable debug output"
-        )
-        
+        self.manager.register_cli(parser)
+
         self.parser = parser
         return parser
     
     def validate_args(self, args):
         """Validate parsed arguments"""
-        # Ensure at least one target is provided or input list is specified
         if not args.targets and not args.input_list and not args.list_targets:
             print(f"{Fore.RED}[!] Error: No targets specified. Provide IP(s), domain(s), or use -iL{Style.RESET_ALL}")
-            return False
-        
-        # Check if SYN scan is requested without root privileges
-        if args.syn_scan and not self._is_root():
-            print(f"{Fore.RED}[!] Error: SYN scan (-sS) requires root privileges{Style.RESET_ALL}")
             return False
         
         # Validate thread count
@@ -362,27 +182,6 @@ For more examples, use: skyview -H
         
         return True
     
-    def _is_root(self):
-        """Check if running with root privileges"""
-        try:
-            return sys.platform != 'win32' and os.geteuid() == 0
-        except AttributeError:
-            return False
-    
-    def _get_scan_type(self, args):
-        """Determine the scan type based on arguments"""
-        if args.ping_scan:
-            return "ping"
-        elif args.ack_ping:
-            return "ack"
-        elif args.syn_scan:
-            return "syn"
-        elif args.tcp_connect:
-            return "tcp"
-        elif args.list_targets:
-            return "list"
-        else:
-            return "tcp"  # Default to TCP connect scan
     def build_targets(self,targets: List[str]) -> List[str]:
         result=list()
         tmp=""
@@ -392,7 +191,7 @@ For more examples, use: skyview -H
                     network = ipaddress.ip_network(target, strict=False)
                     result.extend([str(ip) for ip in network.hosts()])
                 except ValueError:
-                    result.append(target)  # Nếu không hợp lệ, giữ nguyên
+                    result.append(target)  
                 continue
             parts=target.split('.')
             if '-' in parts[3]:
@@ -424,7 +223,6 @@ For more examples, use: skyview -H
         
         return ScanContext(
             targets=targets,
-            scan_type=self._get_scan_type(args),
             ports=args.ports,
             scan_all_ports=args.scan_all_ports,
             fast_scan=args.fast,
@@ -441,7 +239,8 @@ For more examples, use: skyview -H
             verbose=args.verbose,
             debug=args.debug,
             exclude=args.exclude,
-            input_list=args.input_list
+            input_list=args.input_list,
+            cli_args=args
         )
     
     def display_config(self, context):
@@ -481,31 +280,6 @@ For more examples, use: skyview -H
         else:
             return "Default ports (80, 443)"
     
-    def display_results(self, results):
-        """Display scan results - called by engine after scan"""
-        if not results:
-            print(f"{Fore.YELLOW}[!] No results to display{Style.RESET_ALL}")
-            return
-        
-        print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}SCAN RESULTS{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
-        
-        for target, data in results.items():
-            print(f"{Fore.GREEN}Host: {target}{Style.RESET_ALL}")
-            if 'state' in data:
-                print(f"State:{data['state']}")
-            if 'ports' in data:
-                for port, info in data['ports'].items():
-                    if info['state'] == 'open' or not self.args.open:
-                        print(f"  Port {port}/tcp: {info['state']} ({info.get('service', 'unknown')})")
-            if 'os' in data and self.args.os_detection:
-                print(f"  OS: {data['os']}")
-            print()
-        
-        print(f"{Fore.GREEN}[✓] Scan completed successfully{Style.RESET_ALL}")
-        print(f"    Results are ready for processing by report plugins\n")
-    
     def run(self):
         """Main execution method"""
         # Build and parse arguments
@@ -538,17 +312,7 @@ For more examples, use: skyview -H
         # Display configuration
         self.display_config(context)
         
-        # Simulate scan (replace with actual scan engine logic)
-        if context.debug:
-            print(f"{Fore.YELLOW}[DEBUG] Starting simulated scan...{Style.RESET_ALL}")
-        
-        results = {}
-        manager=ScanManagr(context)
-        results=manager.run()
-        print(results)
-        # Display results
-        self.display_results(results)
-        
+        results=self.manager.run_pipline(context,self.args)
         
         return 0
 

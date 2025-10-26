@@ -1,9 +1,7 @@
 
 from typing import Dict, List
 from network_probe.core.context import ScanContext
-from network_probe.plugins.base import BaseScanner
-import os
-from dotenv import load_dotenv
+from network_probe.plugins.base_plugin import BaseScanner
 import socket
 
 

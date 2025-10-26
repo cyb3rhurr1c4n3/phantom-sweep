@@ -1,6 +1,6 @@
 from typing import Dict
 from network_probe.core.context import ScanContext
-from network_probe.plugins.base import BaseScanner
+from network_probe.plugins.base_plugin import BaseScanner
 
 
 class SynScanner(BaseScanner):

@@ -1,6 +1,6 @@
 # Ngữ cảnh quét 
-from dataclasses import dataclass
-from typing import List, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -25,3 +25,11 @@ class ScanContext:
     debug: bool
     exclude: Optional[List[str]]
     input_list: Optional[str]
+
+    _data_bag: Dict[str,Any]=field(default_factory=dict)
+
+    def set_data(self,key:str,value):
+        self._data_bag[key]=value
+
+    def get_data(self,key:str)->Optional[Any]:
+        self._data_bag.get(key)
