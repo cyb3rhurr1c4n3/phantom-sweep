@@ -12,3 +12,4 @@ network_probe/.env
 .vscode/
 .idea/
 .DS_Store
+.venv/

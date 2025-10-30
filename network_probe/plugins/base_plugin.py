@@ -3,7 +3,7 @@ import abc
 from typing import Dict, List
 from network_probe.core.context import ScanContext
 from argparse import ArgumentParser
-from plugin_types import PluginType
+from network_probe.plugins.plugin_types import PluginType
 class BasePlugin(abc.ABC):
     @abc.abstractmethod
     def name(self)-> str:
@@ -19,5 +19,15 @@ class BasePlugin(abc.ABC):
 
     @abc.abstractmethod
     def run(self, context: ScanContext, args):
+        pass
+
+class BaseReport(abc.ABC):
+    @abc.abstractmethod
+    def save(self, results: Dict[str,any],filename: str):
+        pass
+
+class BaseScanner(abc.ABC):
+    @abc.abstractmethod
+    def scan(self, target: str, context: ScanContext ) -> Dict[str,any]:
         pass
         
