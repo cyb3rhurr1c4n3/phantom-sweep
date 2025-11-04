@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 from network_probe.core.context import ScanContext
 from network_probe.plugins.plugin_manager import PluginManager, ScanManager
-
+import pprint
 try:
     import pyfiglet
     from colorama import Fore, Style, init
@@ -153,7 +153,112 @@ class SkyViewCLI:
             metavar="IP",
             help="Exclude specified IPs/ranges/CIDRs from scan"
         )
-        
+        timing_group = parser.add_argument_group('Timing and Performance')
+        timing_group.add_argument(
+            '--thread',
+            metavar="<num>",
+            type=int,
+            default=50,
+            help='Number of threads (default: 50)'
+        )
+        timing_group.add_argument(
+            '--timeout',
+            metavar="<sec>",
+            type=float,
+            default=1.0,
+            help='Timeout in seconds (default: 1.0)'
+        )
+        timing_group.add_argument(
+            '-T', '--timing',
+            metavar="<0-5>",
+            type=int,
+            choices=range(0, 6),
+            default=3,
+            help='Timing template (0=paranoid, 5=insane, default: 3)'
+        )
+        target_group.add_argument(
+            '-sL', '--list-targets',
+            action='store_true',
+            help='List targets only (no scan)'
+        )
+        port_group = parser.add_argument_group('Port Specification')
+        port_group.add_argument(
+            '-p', '--ports',
+            metavar="PORT_SPEC",
+            dest="ports",
+            help="Quét các cổng cụ thể (ví dụ: 80,443 hoặc 1-1000)"
+        )
+        port_group.add_argument(
+            '-p-', '--scan-all-ports',
+            dest="scan_all_ports",
+            action='store_true',
+            help="Quét tất cả 65535 cổng"
+        )
+        port_group.add_argument(
+            '-F', '--fast',
+            dest="fast",
+            action='store_true',
+            help="Quét 100 cổng phổ biến nhất (nhanh)"
+        )
+        detection_group = parser.add_argument_group('Service/Version Detection')
+        detection_group.add_argument(
+            '-sV', '--service-version',
+            dest="service_version",
+            action='store_true',
+            help='Probe open ports to determine service/version'
+        )
+        detection_group.add_argument(
+            '-O', '--os-detection',
+            dest="os_detection",
+            action='store_true',
+            help='Enable OS detection'
+        )
+
+        # === 3. THÊM NHÓM OUTPUT (SỬA LỖI 'output_*' và 'open') ===
+        output_group = parser.add_argument_group('Output')
+        output_group.add_argument(
+            '-oN', '--output-normal',
+            dest="output_normal",
+            metavar="FILE",
+            help='Normal output'
+        )
+        output_group.add_argument(
+            '-oX', '--output-xml',
+            dest="output_xml",
+            metavar="FILE",
+            help='XML output'
+        )
+        output_group.add_argument(
+            '-oJ', '--output-json',
+            dest="output_json",
+            metavar="FILE",
+            help='JSON output'
+        )
+        output_group.add_argument(
+            '-oH', '--output-html',
+            dest="output_html",
+            metavar="FILE",
+            help='HTML report'
+        )
+        output_group.add_argument(
+            '--open',
+            dest="open",
+            action='store_true',
+            help='Show only open ports'
+        )
+        misc_group = parser.add_argument_group('Miscellaneous')
+        misc_group.add_argument(
+            '--verbose',
+            dest="verbose",
+            action='store_true',
+            help='Increase verbosity level'
+        )
+        misc_group.add_argument(
+            '--debug',
+            dest="debug",
+            action='store_true',
+            help='Enable debug mode'
+        )
         self.manager.register_cli(parser)
 
         self.parser = parser
@@ -194,8 +299,8 @@ class SkyViewCLI:
                     result.append(target)  
                 continue
             parts=target.split('.')
-            if '-' in parts[3]:
-                start,end = map(int,parts[3].split('-'))
+            if '-' in parts[2]:
+                start,end = map(int,parts[2].split('-'))
                 for i in range(start,end+1):
                     tmp= f"{parts[0]}.{parts[1]}.{parts[2]}.{i}"
                     result.append(tmp)
@@ -220,6 +325,12 @@ class SkyViewCLI:
         targets = list(set([t for t in targets if t]))
         targets=self.build_targets(targets) 
         print(targets)
+
+        scan_type = "tcp_connect" # Mặc định
+        if hasattr(args, 'syn_scan') and args.syn_scan:
+            scan_type = "syn_scan"
+        elif hasattr(args, 'tcp_connect') and args.tcp_connect:
+            scan_type = "tcp_connect"
         
         return ScanContext(
             targets=targets,
@@ -240,7 +351,7 @@ class SkyViewCLI:
             debug=args.debug,
             exclude=args.exclude,
             input_list=args.input_list,
-            cli_args=args
+            scan_type=scan_type
         )
     
     def display_config(self, context):
@@ -285,7 +396,6 @@ class SkyViewCLI:
         # Build and parse arguments
         self.build_parser()
         self.args = self.parser.parse_args()
-        
         # Show advanced help if requested
         if self.args.advanced_help:
             self.print_advanced_help()
@@ -313,7 +423,20 @@ class SkyViewCLI:
         self.display_config(context)
         
         results=self.manager.run_pipline(context,self.args)
-        
+        final_scan_results = context.get_data("scan_results")
+        if (final_scan_results and 
+            not context.output_normal and 
+            not context.output_xml and 
+            not context.output_json and 
+            not context.output_html):
+            
+            print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}")
+            
+            # Dùng pprint để in từ điển lồng nhau cho đẹp
+            pprint.pprint(final_scan_results)
+            print(final_scan_results)
+            print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
         return 0
 
 

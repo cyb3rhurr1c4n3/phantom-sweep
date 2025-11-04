@@ -32,4 +32,4 @@ class ScanContext:
         self._data_bag[key]=value
 
     def get_data(self,key:str)->Optional[Any]:
-        self._data_bag.get(key)
+        return self._data_bag.get(key)

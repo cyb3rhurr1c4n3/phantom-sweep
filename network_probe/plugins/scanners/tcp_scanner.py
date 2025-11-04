@@ -1,10 +1,11 @@
-
+import os
+import socket
 from typing import Dict, List
+from scapy.all import *
+
 from network_probe.core.context import ScanContext
 from network_probe.plugins.base_plugin import BaseScanner
-import socket
-
-
+conf.verb = 0
 Fast_Scan_Port=[7, 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995,
     1723, 3306, 3268, 3269, 3389, 5900, 8080, 8443, 1025, 1026, 1027, 1028, 1029, 1030,
     113, 199, 465, 513, 514, 515, 543, 544, 548, 554, 587, 631, 646, 873,
@@ -13,8 +14,11 @@ Fast_Scan_Port=[7, 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 99
     500, 5060, 5222, 5223, 5228, 5357, 5432, 5631, 5666, 6000, 6001, 6646,
     7070, 8000, 8008, 8009, 8081, 8888, 9100, 9999, 10000, 32768, 49158,
     49159, 49160, 49161, 49162, 49163]
-
 class TCPScanner(BaseScanner):
+    def __init__(self):
+        # if os.getuid() != 0:
+        #     raise PermissionError("Quét TCP bằng scapy (SYN Scan) yêu cầu quyền root (sudo).")
+        pass
     def _parse_port(self, context: ScanContext)-> List[int]:
         ports=set()
         if context.scan_all_ports:
@@ -33,23 +37,21 @@ class TCPScanner(BaseScanner):
                     if 0< port<=65535:
                         ports.add(port)
             return sorted(list(ports))
-        return [20,21,22,80,443]
-    def scan(self, target: str,context: ScanContext) -> Dict[str,any]:
-        ports_scan=self._parse_port(context)
-        result={}
-        for port in ports_scan:
-            s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            s.settimeout(context.timeout)
-            try:
-                result_code=s.connect_ex((target,port))
-                if result_code==0:
-                    result[port]={"state":"open","service":"unknown"}
-            except socket.gaierror:
-                return {"error": f"Không thể phân giải tên miền: {target}"}
-            except socket.error as e:
-                if context.debug:
-                    print(f"    [DEBUG-TCPScanner] Lỗi socket khi quét cổng {port}: {e}")
-            finally:
-                s.close()
-            final={"ports":result}
-        return final
+        return [21, 22, 23, 25, 53, 80, 443, 3306, 3389, 8080]
+    def scan(self, target:str, context: ScanContext) -> Dict[str,any]:
+        ports_to_scan = self._parse_port(context)
+        open_ports = {}
+        try:
+            ip_target=socket.gethostbyname(target)
+        except socket.gaierror:
+            return {"error":f"Không thể phân giải tên miền {target}"}
+        for port in ports_to_scan:
+            packet=IP(dst=ip_target) /TCP(dport=port,flags="S")
+            response=sr1(packet,timeout=context.timeout,verbose=0)
+
+            if response and response.haslayer(TCP):
+                flags=response.getlayer(TCP).flags
+                if flags==0x12:
+                    open_ports[port]={"state":"open","service":"unknow"}
+        final_result={"ports":open_ports}
+        return final_result
