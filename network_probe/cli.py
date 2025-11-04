@@ -321,7 +321,6 @@ class SkyViewCLI:
                 print(f"{Fore.RED}[!] Error reading input file: {e}{Style.RESET_ALL}")
                 sys.exit(1)
         
-        # Remove duplicates and empty targets
         targets = list(set([t for t in targets if t]))
         targets=self.build_targets(targets) 
         print(targets)
@@ -329,8 +328,11 @@ class SkyViewCLI:
         scan_type = "tcp_connect" # Mặc định
         if hasattr(args, 'syn_scan') and args.syn_scan:
             scan_type = "syn_scan"
+        elif hasattr(args, 'ping_scan') and args.ping_scan:
+            scan_type = "ping_scan"
         elif hasattr(args, 'tcp_connect') and args.tcp_connect:
             scan_type = "tcp_connect"
+        
         
         return ScanContext(
             targets=targets,
@@ -339,7 +341,7 @@ class SkyViewCLI:
             fast_scan=args.fast,
             service_version=args.service_version,
             os_detection=args.os_detection,
-            timing=args.timing if args.timing is not None else 3,  # Default to normal timing
+            timing=args.timing if args.timing is not None else 3,  
             threads=args.thread,
             timeout=args.timeout,
             output_normal=args.output_normal,
@@ -390,21 +392,41 @@ class SkyViewCLI:
             return context.ports
         else:
             return "Default ports (80, 443)"
-    def print_result(self,final_result:dict, context : ScanContext):
+    def print_results(self, results: dict, context: ScanContext):
+        """
+        In kết quả quét ra màn hình (tự động điều chỉnh cột
+        dựa trên context).
+        """
         print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}\n")\
+        print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}\n")
         
-        if not final_result:
-            print(f"{Fore.YELLOW}Không tìm thấy mục tiêu hoặc cổng mở nào.{Style.RESET_ALL}")
+        if not results:
+            print(f"{Fore.YELLOW}Không tìm thấy mục tiêu nào.{Style.RESET_ALL}")
             print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
             return
-        show_service = context.service_version
 
-        for target, data in final_result.items():
+        # Quyết định xem có hiển thị cột SERVICE không
+        show_service = context.service_version
+        
+        is_ping_scan = (context.scan_type == "ping_scan")
+
+        for target, data in results.items():
             if "error" in data:
                 print(f"{Fore.RED}Lỗi khi quét {target}: {data['error']}{Style.RESET_ALL}")
                 continue
-                
+            
+            # === XỬ LÝ OUTPUT CHO PING SCAN (-sn) ===
+            if is_ping_scan:
+                state = data.get("state", "down")
+                if state == "up":
+                    print(f"{Style.BRIGHT}Host {target} is {Fore.GREEN}up{Style.RESET_ALL}")
+                else:
+                    print(f"{Style.BRIGHT}Host {target} is {Fore.RED}down{Style.RESET_ALL}")
+                    pass 
+                continue # Chuyển sang target tiếp theo
+            # ========================================
+
+            # === XỬ LÝ OUTPUT CHO PORT SCAN (MẶC ĐỊNH) ===
             print(f"{Style.BRIGHT}Scan report for {target}{Style.RESET_ALL}")
             
             ports_data = data.get("ports", {})
@@ -412,7 +434,7 @@ class SkyViewCLI:
                 print(f"  {Fore.YELLOW}Host is up, but no open ports were found.{Style.RESET_ALL}\n")
                 continue
 
-            # === XÂY DỰNG TIÊU ĐỀ ĐỘNG ===
+            # Xây dựng tiêu đề động
             header = f"  {Fore.CYAN}{'PORT':<10} {'STATE':<10}{Style.RESET_ALL}"
             line = f"  {'----':<10} {'-----':<10}"
             
@@ -422,10 +444,9 @@ class SkyViewCLI:
                 
             print(header)
             print(line)
-            # ==============================
 
             # Lặp qua các cổng và in
-            for port, details in ports_data.items():
+            for port, details in sorted(ports_data.items()): # Thêm .items() và sorted()
                 state = details.get("state", "unknown")
                 service = details.get("service", "unknown")
                 
@@ -434,23 +455,18 @@ class SkyViewCLI:
                 else:
                     state_color = Fore.RED
                     
-                # === XÂY DỰNG HÀNG ĐỘNG ===
                 row = f"  {str(port) + '/tcp':<10} {state_color}{state:<10}{Style.RESET_ALL}"
                 
                 if show_service:
-                    # Chỉ thêm service nếu show_service là True
                     row += f" {service:<20}"
                     
                 print(row)
-                # ==========================
             
-            # === HIỂN THỊ OS NẾU CÓ ===
+            # Hiển thị OS (nếu có)
             if context.os_detection:
-                # (Giả định rằng plugin Analyze của bạn sẽ thêm key 'os' vào data)
                 os_guess = data.get("os", None) 
                 if os_guess:
                     print(f"\n  {Fore.MAGENTA}OS Guess:{Style.RESET_ALL} {os_guess}")
-            # =======================
 
             print("\n") # Thêm một dòng trống giữa các target
 
@@ -490,7 +506,7 @@ class SkyViewCLI:
         final_scan_results = context.get_data("scan_results")
         output_file_requested = (context.output_normal or  context.output_xml or context.output_json or context.output_html)
         if not output_file_requested:
-            self.print_result(final_scan_results,context)        
+            self.print_results(final_scan_results,context)        
         return 0
 
 

@@ -1,17 +1,13 @@
-
 from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor
 import sys
 import threading
-from typing import Dict, List
 
 from colorama import Fore, Style
 from network_probe.core.context import ScanContext
-from network_probe.plugins.base_plugin import BasePlugin, BaseScanner
-
+from network_probe.plugins.base_plugin import BasePlugin
 from network_probe.plugins.plugin_types import PluginType
-from network_probe.plugins.scanners.tcp_scanner import TCPScanner
-
+from network_probe.plugins.scanners.ping_scanner import PingScanner
 
 Fast_Scan_Port=[7, 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995,
     1723, 3306, 3268, 3269, 3389, 5900, 8080, 8443, 1025, 1026, 1027, 1028, 1029, 1030,
@@ -21,10 +17,9 @@ Fast_Scan_Port=[7, 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 99
     500, 5060, 5222, 5223, 5228, 5357, 5432, 5631, 5666, 6000, 6001, 6646,
     7070, 8000, 8008, 8009, 8081, 8888, 9100, 9999, 10000, 32768, 49158,
     49159, 49160, 49161, 49162, 49163]
-
-class TCPScannerPlugin(BasePlugin):
+class PingScannerPlugin(BasePlugin):
     def name(self)-> str:
-        return "tcp_connect_scanner"
+        return "ping_scan"
 
     def plugin_type(self) -> PluginType:
         return PluginType.Scan
@@ -32,42 +27,37 @@ class TCPScannerPlugin(BasePlugin):
     def register_cli(self, parse: ArgumentParser):
         scan_group=parse.add_mutually_exclusive_group()
         scan_group.add_argument(
-            '-sT',
-            '--tcp-connect',
+            '-sn',
+            '--ping-scan',
             action="store_true",
-            help="Thực hiện TCP connect scan"
+            dest="ping_scan",
+            help="Ping scanner"
         )
 
-    def run(self, context: ScanContext, args):
-        other_scan_active = False
-        if hasattr(args, 'syn_scan') and args.syn_scan:
-            other_scan_active = True
-        elif hasattr(args, 'ping_scan') and args.ping_scan:
-            other_scan_active = True
-        is_default_scan = (not other_scan_active) and (not args.tcp_connect)
 
-        if not args.tcp_connect and not is_default_scan:
+    def run(self, context: ScanContext, args):
+        if not args.ping_scan:
             return
-        
         try:
-            scanner=TCPScanner()
+            scanner=PingScanner()
         except PermissionError as e:
-            print(f"{Fore.RED}[!] Lỗi: {e}{Style.RESET_ALL}")
-            print("    Kỹ thuật quét này yêu cầu quyền 'sudo'. Vui lòng chạy lại.")
+            print(f"Không có quyền để quét {e}")
+            print("    Ping scan (-sn) yêu cầu quyền 'sudo'/'Administrator'.")
             sys.exit(1)
-        scan_results={}
+        scan_result={}
         lock=threading.Lock()
+
         def scan_target(target):
             try:
                 result=scanner.scan(target,context)
                 with lock:
                     if "error" in result:
                         print(f"[!] Lỗi khi quét {target}: {result['error']}")
-                    scan_results[target]=result
+                    scan_result[target]=result
             except Exception as e:
-                pass
+                print(f"{Fore.RED}[!] Lỗi nghiêm trọng khi ping {target}: {e}{Style.RESET_ALL}")
         with ThreadPoolExecutor(max_workers=context.threads) as executor:
             executor.map(scan_target, context.targets)
-                
-        context.set_data("scan_results", scan_results)
-        print(f"[*] TCP Scan hoàn tất.")
+            
+        context.set_data("scan_results", scan_result)
+        print(f"[*] Ping Scan hoàn tất.")
