@@ -1,4 +1,5 @@
 # python
+**/__pycache__/
 __pycache__/
 *.pyc
 *.pyo
@@ -13,3 +14,4 @@ network_probe/.env
 .idea/
 .DS_Store
 .venv/
+*.pyc

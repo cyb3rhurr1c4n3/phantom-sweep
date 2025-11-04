@@ -32,7 +32,7 @@ class SynScanner(BaseScanner):
                     if 0< port<=65535:
                         ports.add(port)
             return sorted(list(ports))
-        return [20,21,22,80,443]
+        return [21, 22, 23, 25, 53, 80, 443, 3306, 3389, 8080]
     
 
     def scan(self, target: str, context: ScanContext) -> Dict[str,any]:
