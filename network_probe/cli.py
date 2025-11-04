@@ -390,7 +390,71 @@ class SkyViewCLI:
             return context.ports
         else:
             return "Default ports (80, 443)"
-    
+    def print_result(self,final_result:dict, context : ScanContext):
+        print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}\n")\
+        
+        if not final_result:
+            print(f"{Fore.YELLOW}Không tìm thấy mục tiêu hoặc cổng mở nào.{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+            return
+        show_service = context.service_version
+
+        for target, data in final_result.items():
+            if "error" in data:
+                print(f"{Fore.RED}Lỗi khi quét {target}: {data['error']}{Style.RESET_ALL}")
+                continue
+                
+            print(f"{Style.BRIGHT}Scan report for {target}{Style.RESET_ALL}")
+            
+            ports_data = data.get("ports", {})
+            if not ports_data:
+                print(f"  {Fore.YELLOW}Host is up, but no open ports were found.{Style.RESET_ALL}\n")
+                continue
+
+            # === XÂY DỰNG TIÊU ĐỀ ĐỘNG ===
+            header = f"  {Fore.CYAN}{'PORT':<10} {'STATE':<10}{Style.RESET_ALL}"
+            line = f"  {'----':<10} {'-----':<10}"
+            
+            if show_service:
+                header += f" {Fore.CYAN}{'SERVICE':<20}{Style.RESET_ALL}"
+                line += f" {'-------':<20}"
+                
+            print(header)
+            print(line)
+            # ==============================
+
+            # Lặp qua các cổng và in
+            for port, details in ports_data.items():
+                state = details.get("state", "unknown")
+                service = details.get("service", "unknown")
+                
+                if state.lower() == "open":
+                    state_color = Fore.GREEN
+                else:
+                    state_color = Fore.RED
+                    
+                # === XÂY DỰNG HÀNG ĐỘNG ===
+                row = f"  {str(port) + '/tcp':<10} {state_color}{state:<10}{Style.RESET_ALL}"
+                
+                if show_service:
+                    # Chỉ thêm service nếu show_service là True
+                    row += f" {service:<20}"
+                    
+                print(row)
+                # ==========================
+            
+            # === HIỂN THỊ OS NẾU CÓ ===
+            if context.os_detection:
+                # (Giả định rằng plugin Analyze của bạn sẽ thêm key 'os' vào data)
+                os_guess = data.get("os", None) 
+                if os_guess:
+                    print(f"\n  {Fore.MAGENTA}OS Guess:{Style.RESET_ALL} {os_guess}")
+            # =======================
+
+            print("\n") # Thêm một dòng trống giữa các target
+
+        print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
     def run(self):
         """Main execution method"""
         # Build and parse arguments
@@ -424,19 +488,9 @@ class SkyViewCLI:
         
         results=self.manager.run_pipline(context,self.args)
         final_scan_results = context.get_data("scan_results")
-        if (final_scan_results and 
-            not context.output_normal and 
-            not context.output_xml and 
-            not context.output_json and 
-            not context.output_html):
-            
-            print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}")
-            
-            # Dùng pprint để in từ điển lồng nhau cho đẹp
-            pprint.pprint(final_scan_results)
-            print(final_scan_results)
-            print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+        output_file_requested = (context.output_normal or  context.output_xml or context.output_json or context.output_html)
+        if not output_file_requested:
+            self.print_result(final_scan_results,context)        
         return 0
 
 
