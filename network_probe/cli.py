@@ -328,6 +328,8 @@ class SkyViewCLI:
         scan_type = "tcp_connect" # Mặc định
         if hasattr(args, 'syn_scan') and args.syn_scan:
             scan_type = "syn_scan"
+        elif hasattr(args, 'udp_scan') and args.udp_scan:
+            scan_type = "udp_scan"
         elif hasattr(args, 'ping_scan') and args.ping_scan:
             scan_type = "ping_scan"
         elif hasattr(args, 'tcp_connect') and args.tcp_connect:
@@ -392,83 +394,120 @@ class SkyViewCLI:
             return context.ports
         else:
             return "Default ports (80, 443)"
-    def print_results(self, results: dict, context: ScanContext):
+    def _print_port_table(self, protocol: str, ports_data: dict, show_service: bool):
         """
-        In kết quả quét ra màn hình (tự động điều chỉnh cột
-        dựa trên context).
+        Hàm trợ giúp mới: In một bảng cổng (TCP hoặc UDP).
+        """
+        
+        # Xây dựng tiêu đề động
+        header = f"  {Fore.CYAN}{'PORT':<12} {'STATE':<15}{Style.RESET_ALL}"
+        line = f"  {'----':<12} {'-----':<15}"
+        
+        if show_service:
+            header += f" {Fore.CYAN}{'SERVICE':<20}{Style.RESET_ALL}"
+            line += f" {'-------':<20}"
+            
+        print(header)
+        print(line)
+
+        # Lặp qua các cổng và in
+        for port, details in sorted(ports_data.items()):
+            state = details.get("state", "unknown")
+            service = details.get("service", "unknown")
+            
+            # Tô màu cho trạng thái
+            if state.lower() == "open":
+                state_color = Fore.GREEN
+            elif "filtered" in state.lower(): # Bắt cả 'filtered' và 'open|filtered'
+                state_color = Fore.YELLOW
+            else:
+                state_color = Fore.RED
+            
+            port_str = f"{port}/{protocol.lower()}"
+                
+            row = f"  {port_str:<12} {state_color}{state:<15}{Style.RESET_ALL}"
+            
+            if show_service:
+                row += f" {service:<20}"
+                
+            print(row)
+
+    def print_results(self, context: ScanContext):
+        """
+        In kết quả quét (hỗ trợ cả TCP, UDP, và Ping Scan).
         """
         print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}\n")
+
+        # 1. Lấy tất cả các loại kết quả
+        tcp_results = context.get_data("scan_results") or {}
+        udp_results = context.get_data("scan_results_udp") or {} # <--- Key UDP mới
         
-        if not results:
+        # Xử lý Ping scan (giả sử nó nằm trong 'scan_results')
+        is_ping_scan = (context.scan_type == "ping_scan")
+        
+        # 2. Lấy tất cả các target đã quét
+        all_targets = set(tcp_results.keys()) | set(udp_results.keys())
+
+        # 3. Xử lý trường hợp không tìm thấy/ping scan
+        if not all_targets:
+            if is_ping_scan and tcp_results:
+                 for target, data in tcp_results.items():
+                    state = data.get("state", "down")
+                    if state == "up":
+                        print(f"{Style.BRIGHT}Host {target} is {Fore.GREEN}up{Style.RESET_ALL}")
+                 print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+                 return
+            
             print(f"{Fore.YELLOW}Không tìm thấy mục tiêu nào.{Style.RESET_ALL}")
             print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
             return
 
-        # Quyết định xem có hiển thị cột SERVICE không
         show_service = context.service_version
-        
-        is_ping_scan = (context.scan_type == "ping_scan")
 
-        for target, data in results.items():
-            if "error" in data:
-                print(f"{Fore.RED}Lỗi khi quét {target}: {data['error']}{Style.RESET_ALL}")
-                continue
-            
-            # === XỬ LÝ OUTPUT CHO PING SCAN (-sn) ===
-            if is_ping_scan:
-                state = data.get("state", "down")
-                if state == "up":
-                    print(f"{Style.BRIGHT}Host {target} is {Fore.GREEN}up{Style.RESET_ALL}")
-                else:
-                    print(f"{Style.BRIGHT}Host {target} is {Fore.RED}down{Style.RESET_ALL}")
-                    pass 
-                continue # Chuyển sang target tiếp theo
-            # ========================================
-
-            # === XỬ LÝ OUTPUT CHO PORT SCAN (MẶC ĐỊNH) ===
+        # 4. Lặp qua từng target và in kết quả
+        for target in sorted(list(all_targets)):
             print(f"{Style.BRIGHT}Scan report for {target}{Style.RESET_ALL}")
             
-            ports_data = data.get("ports", {})
-            if not ports_data:
-                print(f"  {Fore.YELLOW}Host is up, but no open ports were found.{Style.RESET_ALL}\n")
-                continue
+            target_has_open_ports = False
 
-            # Xây dựng tiêu đề động
-            header = f"  {Fore.CYAN}{'PORT':<10} {'STATE':<10}{Style.RESET_ALL}"
-            line = f"  {'----':<10} {'-----':<10}"
-            
-            if show_service:
-                header += f" {Fore.CYAN}{'SERVICE':<20}{Style.RESET_ALL}"
-                line += f" {'-------':<20}"
+            # === In kết quả TCP ===
+            if target in tcp_results:
+                tcp_data = tcp_results[target]
+                if "error" in tcp_data:
+                    print(f"  {Fore.RED}Lỗi quét TCP: {tcp_data['error']}{Style.RESET_ALL}")
                 
-            print(header)
-            print(line)
+                ports_data = tcp_data.get("ports", {})
+                if ports_data:
+                    target_has_open_ports = True
+                    self._print_port_table("TCP", ports_data, show_service)
 
-            # Lặp qua các cổng và in
-            for port, details in sorted(ports_data.items()): # Thêm .items() và sorted()
-                state = details.get("state", "unknown")
-                service = details.get("service", "unknown")
-                
-                if state.lower() == "open":
-                    state_color = Fore.GREEN
-                else:
-                    state_color = Fore.RED
+            # === In kết quả UDP ===
+            if target in udp_results:
+                udp_data = udp_results[target]
+                if "error" in udp_data:
+                    print(f"  {Fore.RED}Lỗi quét UDP: {udp_data['error']}{Style.RESET_ALL}")
+
+                ports_data = udp_data.get("ports", {})
+                if ports_data:
+                    target_has_open_ports = True
+                    # Thêm 1 dòng trống nếu cả TCP và UDP đều có kết quả
+                    if target_has_open_ports and target in tcp_results and tcp_results[target].get("ports"):
+                        print("") # Dòng trống
                     
-                row = f"  {str(port) + '/tcp':<10} {state_color}{state:<10}{Style.RESET_ALL}"
-                
-                if show_service:
-                    row += f" {service:<20}"
-                    
-                print(row)
+                    self._print_port_table("UDP", ports_data, show_service)
             
-            # Hiển thị OS (nếu có)
+            # === In kết quả OS ===
             if context.os_detection:
-                os_guess = data.get("os", None) 
+                # (Giả sử OS detection lưu kết quả vào tcp_results)
+                os_guess = tcp_results.get(target, {}).get("os", None) 
                 if os_guess:
                     print(f"\n  {Fore.MAGENTA}OS Guess:{Style.RESET_ALL} {os_guess}")
 
-            print("\n") # Thêm một dòng trống giữa các target
+            if not target_has_open_ports:
+                 print(f"  {Fore.YELLOW}Host is up, but no open ports/services were found.{Style.RESET_ALL}")
+
+            print("\n") # Dòng trống giữa các target
 
         print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
     def run(self):
@@ -502,11 +541,15 @@ class SkyViewCLI:
         # Display configuration
         self.display_config(context)
         
-        results=self.manager.run_pipline(context,self.args)
-        final_scan_results = context.get_data("scan_results")
-        output_file_requested = (context.output_normal or  context.output_xml or context.output_json or context.output_html)
+        results=self.manager.run_pipline(context,self.args) 
+        output_file_requested = (
+            context.output_normal or 
+            context.output_xml or 
+            context.output_json or 
+            context.output_html
+            )
         if not output_file_requested:
-            self.print_results(final_scan_results,context)        
+            self.print_results(context)
         return 0
 
 

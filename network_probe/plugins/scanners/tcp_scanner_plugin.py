@@ -44,6 +44,8 @@ class TCPScannerPlugin(BasePlugin):
             other_scan_active = True
         elif hasattr(args, 'ping_scan') and args.ping_scan:
             other_scan_active = True
+        elif hasattr(args,'udp_scan') and args.udp_scan:
+            other_scan_active=True
         is_default_scan = (not other_scan_active) and (not args.tcp_connect)
 
         if not args.tcp_connect and not is_default_scan:
