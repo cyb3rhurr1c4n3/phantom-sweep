@@ -52,6 +52,6 @@ class TCPScanner(BaseScanner):
             if response and response.haslayer(TCP):
                 flags=response.getlayer(TCP).flags
                 if flags==0x12:
-                    open_ports[port]={"state":"open","service":"unknow"}
+                    open_ports[port]={"state":"open","service":"unknown"}
         final_result={"ports":open_ports}
         return final_result
