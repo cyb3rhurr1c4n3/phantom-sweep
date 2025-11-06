@@ -10,7 +10,7 @@ import requests
 
 class HttpRobotsTxt(BasePlugin):
     def name(self):
-        return "http-robots"
+        return "http-robots-txt"
     
     def plugin_type(self):
         return PluginType.Analyze
@@ -26,9 +26,9 @@ class HttpRobotsTxt(BasePlugin):
             if res.status_code == 200:
                 data = res.content
                 text = data.decode('utf-8')
-                result["http-robots.txt"] = self._parse_robots(text)
+                result["http-robots-txt"] = self._parse_robots(text)
         except Exception as e:
-                result["http-robots.txt"] = f"Error while processing: {e}"
+                result["http-robots-txt"] = f"Exception occurred: {str(e)}"
         return result
         
     def _parse_robots(self, content: str):

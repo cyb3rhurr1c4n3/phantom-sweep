@@ -27,7 +27,7 @@ Fast_Scan_Port=[7, 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 99
 
 class SYNScannerPlugin(BasePlugin):
     def name(self)-> str:
-        return "syn_connect_scanner"
+        return "syn_scanner"
 
     def plugin_type(self) -> PluginType:
         return PluginType.Scan
