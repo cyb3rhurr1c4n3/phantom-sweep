@@ -71,5 +71,5 @@ class SYNScannerPlugin(BasePlugin):
         with ThreadPoolExecutor(max_workers=context.threads) as executor:
             executor.map(scan_target, context.targets)
                 
-        context.set_data("scan_results", scan_results)
+        context.set_data("scan_results_syn", scan_results)
         print(f"[*] SYN Scan hoàn tất.")

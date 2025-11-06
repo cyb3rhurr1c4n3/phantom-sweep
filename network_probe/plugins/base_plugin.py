@@ -18,7 +18,7 @@ class BasePlugin(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def run(self, context: ScanContext, args):
+    def run(self, context: ScanContext, args) -> Dict[str, any]:
         pass
 
 class BaseReport(abc.ABC):

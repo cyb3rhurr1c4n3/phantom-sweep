@@ -41,6 +41,8 @@ class PluginManager():
                     # Thay thế cả hai loại dấu gạch chéo
                     module_name_temp = module_path.replace(os.sep, '.')
                     module_name = module_name_temp.replace('/', '.')
+
+                    # BUG: lỡ bên trong plugin name có thêm 1 dấu chấm (http_robots.txt.py) thì sao
                     
                     # Bỏ đuôi .py
                     module_name = module_name[:-3]
