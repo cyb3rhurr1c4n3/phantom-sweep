@@ -36,10 +36,7 @@ class PingScannerPlugin(BasePlugin):
 
 
     def run(self, context: ScanContext, args):
-        if (not args.ping_scan or 
-            (hasattr(args, 'tcp_connect') and args.tcp_connect) or
-            (hasattr(args, 'syn_scan') and args.syn_scan) or
-            (hasattr(args, 'udp_scan') and args.udp_scan)):
+        if not args.ping_scan:
             return
         try:
             scanner=PingScanner()

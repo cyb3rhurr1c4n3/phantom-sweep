@@ -39,18 +39,10 @@ class TCPScannerPlugin(BasePlugin):
         )
 
     def run(self, context: ScanContext, args):
-        other_scan_active = False
-        if hasattr(args, 'syn_scan') and args.syn_scan:
-            other_scan_active = True
-        elif hasattr(args, 'ping_scan') and args.ping_scan:
-            other_scan_active = True
-        elif hasattr(args,'udp_scan') and args.udp_scan:
-            other_scan_active=True
-        is_default_scan = (not other_scan_active) and (not args.tcp_connect)
 
-        if not args.tcp_connect and not is_default_scan:
-            return
-        
+        is_other_scan= args.ping_scan or args.tcp_syn or  args.udp_scan
+        if is_other_scan and not args.tcp_connect:
+            return 
         try:
             scanner=TCPScanner()
         except PermissionError as e:
@@ -67,7 +59,7 @@ class TCPScannerPlugin(BasePlugin):
                         print(f"[!] Lỗi khi quét {target}: {result['error']}")
                     scan_results[target]=result
             except Exception as e:
-                pass
+                print(f"[ERROR] Exception khi quét {target}: {type(e).__name__}: {e}")
         with ThreadPoolExecutor(max_workers=context.threads) as executor:
             executor.map(scan_target, context.targets)
                 

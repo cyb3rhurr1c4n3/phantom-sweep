@@ -45,13 +45,19 @@ class TCPScanner(BaseScanner):
             ip_target=socket.gethostbyname(target)
         except socket.gaierror:
             return {"error":f"Không thể phân giải tên miền {target}"}
-        for port in ports_to_scan:
-            packet=IP(dst=ip_target) /TCP(dport=port,flags="S")
-            response=sr1(packet,timeout=context.timeout,verbose=0)
+        
+        packets= [IP(dst=ip_target)/TCP(dport=port) for port in ports_to_scan]
 
-            if response and response.haslayer(TCP):
-                flags=response.getlayer(TCP).flags
-                if flags==0x12:
-                    open_ports[port]={"state":"open","service":"unknown"}
+        ans,unans=sr(packets,timeout=context.timeout, verbose=0)
+
+        for sent, rece in ans:
+            if rece.haslayer(TCP):
+                flag=rece.getlayer(TCP).flags
+                if flag==0x12:
+                    port=sent[TCP].dport
+                    open_ports[port]={"state": "open", "service": "unknown"}
+
+                    sr(IP(dst=ip_target)/TCP(dport=port,flags="R"),timeout=1,verbose=0)
+
         final_result={"ports":open_ports}
         return final_result

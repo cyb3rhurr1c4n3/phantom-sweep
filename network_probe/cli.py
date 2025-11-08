@@ -436,6 +436,7 @@ class SkyViewCLI:
         """
         In kết quả quét (hỗ trợ cả TCP, UDP, và Ping Scan).
         """
+        print(context)
         print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}\n")
 

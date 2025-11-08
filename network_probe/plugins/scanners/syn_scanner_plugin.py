@@ -43,14 +43,16 @@ class SYNScannerPlugin(BasePlugin):
 
     def run(self, context: ScanContext, args):
         other_scan_active = False
-        if hasattr(args, 'tcp_scan') and args.tcp_scan:
-            other_scan_active = True
+        # if hasattr(args, 'tcp_scan') and args.tcp_scan:
+        #     other_scan_active = True
 
-        is_default_scan = (not other_scan_active) and (not args.tcp_syn)
+        # is_default_scan = (not other_scan_active) and (not args.tcp_syn)
 
-        if not args.tcp_connect and not is_default_scan:
-            return
+        # if not args.tcp_connect and not is_default_scan:
+        #     return
         
+        if not args.tcp_syn:
+            return
         try:
             scanner=SynScanner()
         except PermissionError as e:
@@ -71,5 +73,5 @@ class SYNScannerPlugin(BasePlugin):
         with ThreadPoolExecutor(max_workers=context.threads) as executor:
             executor.map(scan_target, context.targets)
                 
-        context.set_data("scan_results_syn", scan_results)
+        context.set_data("scan_results", scan_results)
         print(f"[*] SYN Scan hoàn tất.")
