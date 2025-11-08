@@ -49,32 +49,28 @@ class UDPScanner(BaseScanner):
 
         if context.debug:
             print(f"  [DEBUG-UDP] Quét {len(ports_to_scan)} cổng UDP trên {ip_target}...")
+        packets = [IP(dst=ip_target) / UDP(dport=port) for port in ports_to_scan]
+        
+        ans, unans = sr(packets, timeout=max(2.0, context.timeout), verbose=0, retry=0, inter=0.01)
 
-        for port in ports_to_scan:
-            packet = IP(dst=ip_target) / UDP(dport=port)
+        for sent, rece in ans:
+            port = sent[UDP].dport
             
-            # Quét UDP cần timeout lâu hơn một chút
-            response = sr1(packet, timeout=max(2.0, context.timeout), verbose=0)
+            if rece.haslayer(UDP):
+                open_ports[port] = {"state": "open", "service": "unknown"}
             
-            if response is None:
-                # Không trả lời -> Mở hoặc Bị lọc
-                open_ports[port] = {"state": "open|filtered", "service": "unknown"}
-            
-            elif response.haslayer(ICMP):
-                icmp_layer = response.getlayer(ICMP)
-                # Type 3, Code 3 = Port Unreachable -> Cổng Đóng
+            elif rece.haslayer(ICMP):
+                icmp_layer = rece.getlayer(ICMP)
+                
                 if icmp_layer.type == 3 and icmp_layer.code == 3:
-                    pass # Cổng đóng, không làm gì
-                # Các lỗi ICMP Type 3 khác (Codes 1, 2, 9, 10, 13) -> Bị lọc
+                    pass
                 elif icmp_layer.type == 3:
                     open_ports[port] = {"state": "filtered", "service": "unknown"}
-            
-            elif response.haslayer(UDP):
-                 # Nhận được phản hồi UDP -> Cổng Mở
-                 open_ports[port] = {"state": "open", "service": "unknown"}
+        for sent in unans:
+            port = sent[UDP].dport
+            open_ports[port] = {"state": "open|filtered", "service": "unknown"}
 
         if context.debug:
-            print(f"  [DEBUG-UDP] Đã tìm thấy {len(open_ports)} cổng open|filtered.")
-
-        final_result = {"ports": open_ports}
-        return final_result
+            print(f"  [DEBUG-UDP] Đã tìm thấy {len(open_ports)} cổng mở/filtered.")
+        
+        return {"ports": open_ports}

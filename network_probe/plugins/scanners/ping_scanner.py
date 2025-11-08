@@ -44,11 +44,11 @@ class PingScanner(BaseScanner):
         
         packet=IP(dst=ip_target)/ ICMP()
 
-        response=sr1(packet,timeout=context.timeout,verbose=0)
+        ans,unans=sr(packet,timeout=context.timeout,verbose=0,retry=1)
         
         host_state="down"
 
-        if response:
-            if response.haslayer(ICMP) and response.getlayer(ICMP).type==0:
+        if ans:
+            if ans.haslayer(ICMP) and ans.getlayer(ICMP).type==0:
                 host_state="up"
         return {"state":host_state}

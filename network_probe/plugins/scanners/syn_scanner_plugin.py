@@ -42,15 +42,6 @@ class SYNScannerPlugin(BasePlugin):
         )
 
     def run(self, context: ScanContext, args):
-        other_scan_active = False
-        # if hasattr(args, 'tcp_scan') and args.tcp_scan:
-        #     other_scan_active = True
-
-        # is_default_scan = (not other_scan_active) and (not args.tcp_syn)
-
-        # if not args.tcp_connect and not is_default_scan:
-        #     return
-        
         if not args.tcp_syn:
             return
         try:
