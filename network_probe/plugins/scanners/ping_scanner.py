@@ -3,7 +3,7 @@ from typing import Dict, List
 from network_probe.core.context import ScanContext
 from network_probe.plugins.base_plugin import BaseScanner
 from scapy.all import IP, ICMP, sr
-from network_probe.plugins.scanners.ping_scanner_plugin import Fast_Scan_Port
+# from network_probe.plugins.scanners.ping_scanner_plugin import Fast_Scan_Port
 
 class PingScanner(BaseScanner):
     def __init__(self):
@@ -17,6 +17,7 @@ class PingScanner(BaseScanner):
             return list(range(1,65536))
         if context.fast_scan:
             return Fast_Scan_Port
+            pass
         if context.ports:
             parts=context.ports.split(',')
             for part in parts:
