@@ -13,37 +13,43 @@
 -   **Khởi tạo & Môi trường:**
     -   [ ] Thiết lập kho **GitHub** và cấu trúc dự án chuẩn.
     -   [ ] Cài đặt môi trường **Python 3**, thư viện **Scapy**, và **Asyncio**.
--   **Kiến trúc & Quét Cơ bản:**
-    -   [ ] Xây dựng **CLI Parser** cơ bản (nhận Target, Port Range, Type Scan).
-    -   [ ] Triển khai **Host Discovery** ban đầu (ARP Scan và ICMP Echo).
+-   **Kiến trúc cơ bản**
     -   [ ] Thiết lập kiến trúc **Bất đồng bộ (Asyncio)** cho việc quét cổng.
--   **Các kiểu Quét TCP:**
-    -   [ ] Triển khai **TCP SYN Scan** (`-sS`) sử dụng Scapy (Yêu cầu quyền root).
-    -   [ ] Triển khai **TCP Connect Scan** (`-sT`).
+    -   [ ] Xây dựng **CLI Parser** cơ bản (Target Specification, Type Scan, Other Option).
+    -   [ ] Xây dựng **Context schema** để lưu trữ ngữ cảnh, option, flag cho lần chạy lệnh.
+    -   [ ] Xây dựng **Manager** để quản lý việc kết nối giữa tất cả các thành phần.
+    -   [ ] Xây dựng **Plugin Engine**
+    -   [ ] Xây dựng **Report Engine**
+    -   [ ] Xây dựng **Script Engine**
+    -   [ ] Triển khai module **Host Discovery** (ICMP Echo, TCP SYN/ACK ping, ARP scan).
+    -   [ ] Triển khai module **Port Scanning** (TCP SYN, TCP Connect, UDP scan).
+-   **Tiền AI**
+    -   [ ] Xác định các tính năng sẽ dùng cho AI (ví dụ thông số gói tin (**TTL, Window Size, IHL, Latency**); Tính năng OS Fingerprinting)
 -   **Tối ưu hóa Ban đầu:**
     -   [ ] Tối ưu hóa giá trị **Timeout ban đầu** (Ví dụ: $0.5$s) để đảm bảo độ tin cậy.
+    -   [ ] Tối ưu hóa tốc độ quét, ít nhất phải bằng 90% Nmap
 
 ### 📦 Sản Phẩm Cần Đạt (Deliverables)
 
--   [ ] 🛠️ **CLI** hoạt động, thực hiện **Host Discovery** cơ bản thành công.
--   [ ] ⚡️ Cả hai kiểu quét **TCP SYN** và **TCP Connect** hoạt động, có thể quét **1000 cổng** trong thời gian ngắn (mục tiêu: **dưới 30 giây**).
+-   [ ] Kiến trúc ứng dụng hoạt động tốt (CLI -> Context -> Manager -> Các Engine)
+-   [ ] Xác định rõ tính ứng dụng của AI trong dự án này
+-   [ ] Thực hiện **Host Discovery** thành công với tốc độ lớn hơn hoặc bằng 90% Nmap
+-   [ ] Thực hiện **Port Scanning** thành công với tốc độ lớn hơn hoặc bằng 90% Nmap
 
 ---
 
-## 🔬 Giai Đoạn 2: Mở Rộng Tính Năng & Thu Thập Dữ Liệu AI (3/11 - 16/11)
+## 🔬 Giai Đoạn 2: Mở Rộng Tính Năng & Tích hợp AI (3/11 - 16/11)
 
 ### 🎯 Nhiệm Vụ Kỹ Thuật (Tasks)
 
--   **Quét & Khám phá:**
-    -   [ ] Triển khai kiểu quét **UDP Scan** (`-sU`).
-    -   [ ] Hoàn thiện **Host Discovery** (thêm TCP SYN/ACK Ping).
-    -   [ ] Triển khai **Service Banner Grabbing** (đọc $1024$ bytes đầu tiên).
-    -   [ ] Nhận dạng dịch vụ/phiên bản cơ bản (phân tích chuỗi banner).
+-   **Triển khai hai tính năng còn lại**
+    -   [ ] Triển khai **Service & Version Detection** bằng AI: Thu thập banner từ các cổng đang mở để xác định dịch vụ đang chạy (ví dụ: "Apache/2.4.41", "OpenSSH_8.2p1").
+    -   [ ] Triển khai **OS Fingerprinting** bằng AI: Triển khai các kỹ thuật fingerprinting chủ động hoặc bị động cơ bản (Dựa trên TTL, Window Size, TCP/IP stack behavior.)
 -   **Định dạng Đầu ra:**
     -   [ ] Hoàn thiện định dạng đầu ra **JSON** và **CSV**.
     -   [ ] Thiết kế cấu trúc và triển khai output **Nmap-XML**.
 -   **Chuẩn bị AI:**
-    -   [ ] Xác định các thông số gói tin sẽ dùng cho AI (**TTL, Window Size, IHL, Latency**).
+
     -   [ ] **Thu thập Bộ dữ liệu thô** ($50-100$ host) cho mô hình AI.
 
 ### 📦 Sản Phẩm Cần Đạt (Deliverables)
