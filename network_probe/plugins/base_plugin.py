@@ -28,6 +28,7 @@ class BaseReport(abc.ABC):
 
 class BaseScanner(abc.ABC):
     @abc.abstractmethod
-    def scan(self, target: str, context: ScanContext ) -> Dict[str,any]:
+    def scan(self, targets: List[str], context: ScanContext, args=None) -> Dict[str,any]:
+        """Run the scanner against a batch of targets"""
         pass
         

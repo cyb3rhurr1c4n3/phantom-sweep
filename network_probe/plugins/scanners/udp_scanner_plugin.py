@@ -1,7 +1,5 @@
 from argparse import ArgumentParser
-from concurrent.futures import ThreadPoolExecutor
 import sys
-import threading
 
 from colorama import Fore, Style
 from network_probe.core.context import ScanContext
@@ -25,6 +23,10 @@ class UDPScannerPLugin(BasePlugin):
             action="store_true",
             help="Udp scanner"
         )
+        parse.add_argument(
+            '--udp-interface',
+            help="Interface dùng để sniff/gửi UDP raw packets"
+        )
 
     def run(self, context: ScanContext, args):
         if not args.udp_scan:
@@ -35,20 +37,10 @@ class UDPScannerPLugin(BasePlugin):
             print(f"{Fore.RED}[!] Lỗi: {e}{Style.RESET_ALL}")
             print("    UDP scan (-sU) yêu cầu quyền 'sudo'/'Administrator'.")
             sys.exit(1)
-        scan_result={}
-        lock=threading.Lock()
-        def scan_target(target):
-            try:
-                result=scanner.scan(target,context)
-                with lock:
-                    if "error" in result:
-                        print(f"[!] Lỗi khi quét {target}: {result['error']}")
-                    scan_result[target]=result
-            except Exception as e:
-                print(f"{Fore.RED}[!] Lỗi nghiêm trọng khi quét UDP {target}: {e}{Style.RESET_ALL}")
+        scan_result=scanner.scan(context.targets,context,args)
+        for target,data in scan_result.items():
+            if isinstance(data,dict) and "error" in data:
+                print(f"[!] Lỗi khi quét {target}: {data['error']}")
 
-        with ThreadPoolExecutor(max_workers=context.threads) as executor:
-            executor.map(scan_target, context.targets)
-            
         context.set_data("scan_results_udp", scan_result)
         print(f"[*] UDP Scan hoàn tất.")

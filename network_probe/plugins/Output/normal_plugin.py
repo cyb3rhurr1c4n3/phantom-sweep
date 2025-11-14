@@ -10,11 +10,11 @@ class NormalOutputPlugin(BasePlugin):
         return "output_normal"
     def register_cli(self, parse:ArgumentParser):
         output_group=parse.add_mutually_exclusive_group()
-        output_group.add_argument(
-            '-oN',
-            action="store_true",
-            help="Xuất output dưới dạng text"
-        )
+        # output_group.add_argument(
+        #     '-oN',
+        #     action="store_true",
+        #     help="Xuất output dưới dạng text"
+        # )
 
     def plugin_type(self)->PluginType:
         return PluginType.Output
