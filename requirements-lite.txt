@@ -1,0 +1,5 @@
+colorama
+pyfiglet
+scapy
+paramiko
+requests

@@ -1,9 +1,11 @@
+import os
 import socket
 from typing import Dict, List
-from network_probe.core.context import ScanContext
-from network_probe.plugins.base_plugin import BaseScanner
 from scapy.all import *
 
+from network_probe.core.context import ScanContext
+from network_probe.plugins.base_plugin import BaseScanner
+conf.verb = 0
 Fast_Scan_Port=[7, 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995,
     1723, 3306, 3268, 3269, 3389, 5900, 8080, 8443, 1025, 1026, 1027, 1028, 1029, 1030,
     113, 199, 465, 513, 514, 515, 543, 544, 548, 554, 587, 631, 646, 873,
@@ -12,7 +14,7 @@ Fast_Scan_Port=[7, 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 99
     500, 5060, 5222, 5223, 5228, 5357, 5432, 5631, 5666, 6000, 6001, 6646,
     7070, 8000, 8008, 8009, 8081, 8888, 9100, 9999, 10000, 32768, 49158,
     49159, 49160, 49161, 49162, 49163]
-class PingScanner(BaseScanner):
+class UDPScanner(BaseScanner):
     def __init__(self):
         # if os.getuid() != 0:
         #     raise PermissionError("Quét TCP bằng scapy (SYN Scan) yêu cầu quyền root (sudo).")
@@ -36,19 +38,39 @@ class PingScanner(BaseScanner):
                         ports.add(port)
             return sorted(list(ports))
         return [21, 22, 23, 25, 53, 80, 443, 3306, 3389, 8080]
-    def scan(self,target:str, context : ScanContext)->Dict[str,any]:
+    def scan(self, target: str, context: ScanContext) -> Dict[str, any]:
+        ports_to_scan = self._parse_port(context)
+        open_ports = {}
+        
         try:
-            ip_target=socket.gethostbyname(target)
+            ip_target = socket.gethostbyname(target)
         except socket.gaierror:
             return {"error": f"Không thể phân giải tên miền: {target}"}
-        
-        packet=IP(dst=ip_target)/ ICMP()
 
-        ans,unans=sr(packet,timeout=context.timeout,verbose=0,retry=1)
+        if context.debug:
+            print(f"  [DEBUG-UDP] Quét {len(ports_to_scan)} cổng UDP trên {ip_target}...")
+        packets = [IP(dst=ip_target) / UDP(dport=port) for port in ports_to_scan]
         
-        host_state="down"
+        ans, unans = sr(packets, timeout=max(2.0, context.timeout), verbose=0, retry=0, inter=0.01)
 
-        if ans:
-            if ans.haslayer(ICMP) and ans.getlayer(ICMP).type==0:
-                host_state="up"
-        return {"state":host_state}
+        for sent, rece in ans:
+            port = sent[UDP].dport
+            
+            if rece.haslayer(UDP):
+                open_ports[port] = {"state": "open", "service": "unknown"}
+            
+            elif rece.haslayer(ICMP):
+                icmp_layer = rece.getlayer(ICMP)
+                
+                if icmp_layer.type == 3 and icmp_layer.code == 3:
+                    pass
+                elif icmp_layer.type == 3:
+                    open_ports[port] = {"state": "filtered", "service": "unknown"}
+        for sent in unans:
+            port = sent[UDP].dport
+            open_ports[port] = {"state": "open|filtered", "service": "unknown"}
+
+        if context.debug:
+            print(f"  [DEBUG-UDP] Đã tìm thấy {len(open_ports)} cổng mở/filtered.")
+        
+        return {"ports": open_ports}

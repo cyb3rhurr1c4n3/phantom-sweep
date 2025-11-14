@@ -5,10 +5,9 @@ import os
 import time
 from dataclasses import dataclass
 from typing import List, Optional
-
 from network_probe.core.context import ScanContext
-from network_probe.plugins.manager import ScanManagr
-
+from network_probe.plugins.plugin_manager import PluginManager, ScanManager
+import pprint
 try:
     import pyfiglet
     from colorama import Fore, Style, init
@@ -24,8 +23,11 @@ class SkyViewCLI:
     VERSION = "1.0.0"
     
     def __init__(self):
-        self.parser = None
+        self.parser = argparse.ArgumentParser(...)
         self.args = None
+
+        self.manager=PluginManager()
+
         
     def print_banner(self):
         """Display ASCII banner and information"""
@@ -114,20 +116,7 @@ class SkyViewCLI:
     
     def build_parser(self):
         """Build argument parser"""
-        parser = argparse.ArgumentParser(
-            description="SkyView - Lightweight Network Reconnaissance Tool",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-  skyview 192.168.1.1                      # Basic scan
-  skyview -p 80,443 192.168.1.0/24        # Scan specific ports
-  skyview -F -sV example.com              # Fast scan with service detection
-  skyview -sS -p- 192.168.1.1             # SYN scan all ports
-
-For more examples, use: skyview -H
-            """,
-            add_help=True
-        )
+        parser = self.parser
         
         # Help and Version
         parser.add_argument(
@@ -164,185 +153,121 @@ For more examples, use: skyview -H
             metavar="IP",
             help="Exclude specified IPs/ranges/CIDRs from scan"
         )
-        
-        # Scan Techniques
-        scan_group = parser.add_argument_group('Scan Techniques')
-        scan_group.add_argument(
-            "-sT", "--tcp-connect",
-            action="store_true",
-            help="TCP Connect scan (default, no root required)"
-        )
-        
-        scan_group.add_argument(
-            "-sS", "--syn-scan",
-            action="store_true",
-            help="TCP SYN scan (stealth, requires root)"
-        )
-        
-        scan_group.add_argument(
-            "-sn", "--ping-scan",
-            action="store_true",
-            help="Ping scan only (no port scanning)"
-        )
-        
-        scan_group.add_argument(
-            "-PA", "--ack-ping",
-            action="store_true",
-            help="TCP ACK ping for host discovery"
-        )
-        
-        scan_group.add_argument(
-            "-sL", "--list-targets",
-            action="store_true",
-            help="List targets without scanning"
-        )
-        
-        # Port Specification
-        port_group = parser.add_argument_group('Port Specification')
-        port_group.add_argument(
-            "-p", "--ports",
-            metavar="PORTS",
-            help="Ports to scan (e.g., 80,443 or 1-1000)"
-        )
-        
-        port_group.add_argument(
-            "-p-", "--all-ports",
-            action="store_true",
-            dest="scan_all_ports",
-            help="Scan all 65535 ports"
-        )
-        
-        port_group.add_argument(
-            "-F", "--fast",
-            action="store_true",
-            help="Fast scan (top 100 most common ports)"
-        )
-        
-        # Service/Version Detection
-        detect_group = parser.add_argument_group('Service/Version Detection')
-        detect_group.add_argument(
-            "-sV", "--service-version",
-            action="store_true",
-            help="Probe open ports to determine service/version info"
-        )
-        
-        detect_group.add_argument(
-            "-O", "--os-detection",
-            action="store_true",
-            help="Enable OS detection"
-        )
-        
-        # Timing and Performance
         timing_group = parser.add_argument_group('Timing and Performance')
-        
-        # Timing templates (mutually exclusive)
-        timing_templates = timing_group.add_mutually_exclusive_group()
-        timing_templates.add_argument(
-            "-T0", "--timing-paranoid",
-            action="store_const", const=0, dest="timing",
-            help="Paranoid (slowest, IDS evasion)"
-        )
-        timing_templates.add_argument(
-            "-T1", "--timing-sneaky",
-            action="store_const", const=1, dest="timing",
-            help="Sneaky"
-        )
-        timing_templates.add_argument(
-            "-T2", "--timing-polite",
-            action="store_const", const=2, dest="timing",
-            help="Polite"
-        )
-        timing_templates.add_argument(
-            "-T3", "--timing-normal",
-            action="store_const", const=3, dest="timing",
-            help="Normal (default)"
-        )
-        timing_templates.add_argument(
-            "-T4", "--timing-aggressive",
-            action="store_const", const=4, dest="timing",
-            help="Aggressive"
-        )
-        timing_templates.add_argument(
-            "-T5", "--timing-insane",
-            action="store_const", const=5, dest="timing",
-            help="Insane (fastest)"
-        )
-        
         timing_group.add_argument(
-            "--thread",
+            '--thread',
+            metavar="<num>",
             type=int,
             default=50,
-            metavar="NUM",
-            help="Number of parallel threads (default: 50)"
+            help='Number of threads (default: 50)'
         )
-        
         timing_group.add_argument(
-            "--timeout",
+            '--timeout',
+            metavar="<sec>",
             type=float,
             default=1.0,
-            metavar="SEC",
-            help="Timeout in seconds (default: 1.0)"
+            help='Timeout in seconds (default: 1.0)'
         )
-        
-        # Output Options
-        output_group = parser.add_argument_group('Output Options')
+        timing_group.add_argument(
+            '-T', '--timing',
+            metavar="<0-5>",
+            type=int,
+            choices=range(0, 6),
+            default=3,
+            help='Timing template (0=paranoid, 5=insane, default: 3)'
+        )
+        target_group.add_argument(
+            '-sL', '--list-targets',
+            action='store_true',
+            help='List targets only (no scan)'
+        )
+        port_group = parser.add_argument_group('Port Specification')
+        port_group.add_argument(
+            '-p', '--ports',
+            metavar="PORT_SPEC",
+            dest="ports",
+            help="Quét các cổng cụ thể (ví dụ: 80,443 hoặc 1-1000)"
+        )
+        port_group.add_argument(
+            '-p-', '--scan-all-ports',
+            dest="scan_all_ports",
+            action='store_true',
+            help="Quét tất cả 65535 cổng"
+        )
+        port_group.add_argument(
+            '-F', '--fast',
+            dest="fast",
+            action='store_true',
+            help="Quét 100 cổng phổ biến nhất (nhanh)"
+        )
+        detection_group = parser.add_argument_group('Service/Version Detection')
+        detection_group.add_argument(
+            '-sV', '--service-version',
+            dest="service_version",
+            action='store_true',
+            help='Probe open ports to determine service/version'
+        )
+        detection_group.add_argument(
+            '-O', '--os-detection',
+            dest="os_detection",
+            action='store_true',
+            help='Enable OS detection'
+        )
+
+        # === 3. THÊM NHÓM OUTPUT (SỬA LỖI 'output_*' và 'open') ===
+        output_group = parser.add_argument_group('Output')
         output_group.add_argument(
-            "-oN", "--output-normal",
+            '-oN', '--output-normal',
+            dest="output_normal",
             metavar="FILE",
-            help="Save normal output to file"
+            help='Normal output'
         )
-        
         output_group.add_argument(
-            "-oX", "--output-xml",
+            '-oX', '--output-xml',
+            dest="output_xml",
             metavar="FILE",
-            help="Save XML output to file"
+            help='XML output'
         )
-        
         output_group.add_argument(
-            "-oJ", "--output-json",
+            '-oJ', '--output-json',
+            dest="output_json",
             metavar="FILE",
-            help="Save JSON output to file"
+            help='JSON output'
         )
-        
         output_group.add_argument(
-            "-oH", "--output-html",
+            '-oH', '--output-html',
+            dest="output_html",
             metavar="FILE",
-            help="Save HTML report to file"
+            help='HTML report'
         )
-        
         output_group.add_argument(
-            "--open",
-            action="store_true",
-            help="Show only open ports/hosts"
+            '--open',
+            dest="open",
+            action='store_true',
+            help='Show only open ports'
         )
-        
-        # Miscellaneous
         misc_group = parser.add_argument_group('Miscellaneous')
         misc_group.add_argument(
-            "--verbose",
-            action="store_true",
-            help="Increase output verbosity"
+            '--verbose',
+            dest="verbose",
+            action='store_true',
+            help='Increase verbosity level'
         )
-        
         misc_group.add_argument(
-            "--debug",
-            action="store_true",
-            help="Enable debug output"
+            '--debug',
+            dest="debug",
+            action='store_true',
+            help='Enable debug mode'
         )
-        
+        self.manager.register_cli(parser)
+
         self.parser = parser
         return parser
     
     def validate_args(self, args):
         """Validate parsed arguments"""
-        # Ensure at least one target is provided or input list is specified
         if not args.targets and not args.input_list and not args.list_targets:
             print(f"{Fore.RED}[!] Error: No targets specified. Provide IP(s), domain(s), or use -iL{Style.RESET_ALL}")
-            return False
-        
-        # Check if SYN scan is requested without root privileges
-        if args.syn_scan and not self._is_root():
-            print(f"{Fore.RED}[!] Error: SYN scan (-sS) requires root privileges{Style.RESET_ALL}")
             return False
         
         # Validate thread count
@@ -362,27 +287,6 @@ For more examples, use: skyview -H
         
         return True
     
-    def _is_root(self):
-        """Check if running with root privileges"""
-        try:
-            return sys.platform != 'win32' and os.geteuid() == 0
-        except AttributeError:
-            return False
-    
-    def _get_scan_type(self, args):
-        """Determine the scan type based on arguments"""
-        if args.ping_scan:
-            return "ping"
-        elif args.ack_ping:
-            return "ack"
-        elif args.syn_scan:
-            return "syn"
-        elif args.tcp_connect:
-            return "tcp"
-        elif args.list_targets:
-            return "list"
-        else:
-            return "tcp"  # Default to TCP connect scan
     def build_targets(self,targets: List[str]) -> List[str]:
         result=list()
         tmp=""
@@ -392,11 +296,11 @@ For more examples, use: skyview -H
                     network = ipaddress.ip_network(target, strict=False)
                     result.extend([str(ip) for ip in network.hosts()])
                 except ValueError:
-                    result.append(target)  # Nếu không hợp lệ, giữ nguyên
+                    result.append(target)  
                 continue
             parts=target.split('.')
-            if '-' in parts[3]:
-                start,end = map(int,parts[3].split('-'))
+            if '-' in parts[2]:
+                start,end = map(int,parts[2].split('-'))
                 for i in range(start,end+1):
                     tmp= f"{parts[0]}.{parts[1]}.{parts[2]}.{i}"
                     result.append(tmp)
@@ -417,20 +321,29 @@ For more examples, use: skyview -H
                 print(f"{Fore.RED}[!] Error reading input file: {e}{Style.RESET_ALL}")
                 sys.exit(1)
         
-        # Remove duplicates and empty targets
         targets = list(set([t for t in targets if t]))
         targets=self.build_targets(targets) 
         print(targets)
+
+        scan_type = "tcp_connect" # Mặc định
+        if hasattr(args, 'syn_scan') and args.syn_scan:
+            scan_type = "syn_scan"
+        elif hasattr(args, 'udp_scan') and args.udp_scan:
+            scan_type = "udp_scan"
+        elif hasattr(args, 'ping_scan') and args.ping_scan:
+            scan_type = "ping_scan"
+        elif hasattr(args, 'tcp_connect') and args.tcp_connect:
+            scan_type = "tcp_connect"
+        
         
         return ScanContext(
             targets=targets,
-            scan_type=self._get_scan_type(args),
             ports=args.ports,
             scan_all_ports=args.scan_all_ports,
             fast_scan=args.fast,
             service_version=args.service_version,
             os_detection=args.os_detection,
-            timing=args.timing if args.timing is not None else 3,  # Default to normal timing
+            timing=args.timing if args.timing is not None else 3,  
             threads=args.thread,
             timeout=args.timeout,
             output_normal=args.output_normal,
@@ -441,7 +354,8 @@ For more examples, use: skyview -H
             verbose=args.verbose,
             debug=args.debug,
             exclude=args.exclude,
-            input_list=args.input_list
+            input_list=args.input_list,
+            scan_type=scan_type
         )
     
     def display_config(self, context):
@@ -480,38 +394,128 @@ For more examples, use: skyview -H
             return context.ports
         else:
             return "Default ports (80, 443)"
-    
-    def display_results(self, results):
-        """Display scan results - called by engine after scan"""
-        if not results:
-            print(f"{Fore.YELLOW}[!] No results to display{Style.RESET_ALL}")
+    def _print_port_table(self, protocol: str, ports_data: dict, show_service: bool):
+        """
+        Hàm trợ giúp mới: In một bảng cổng (TCP hoặc UDP).
+        """
+        
+        # Xây dựng tiêu đề động
+        header = f"  {Fore.CYAN}{'PORT':<12} {'STATE':<15}{Style.RESET_ALL}"
+        line = f"  {'----':<12} {'-----':<15}"
+        
+        if show_service:
+            header += f" {Fore.CYAN}{'SERVICE':<20}{Style.RESET_ALL}"
+            line += f" {'-------':<20}"
+            
+        print(header)
+        print(line)
+
+        # Lặp qua các cổng và in
+        for port, details in sorted(ports_data.items()):
+            state = details.get("state", "unknown")
+            service = details.get("service", "unknown")
+            
+            # Tô màu cho trạng thái
+            if state.lower() == "open":
+                state_color = Fore.GREEN
+            elif "filtered" in state.lower(): # Bắt cả 'filtered' và 'open|filtered'
+                state_color = Fore.YELLOW
+            else:
+                state_color = Fore.RED
+            
+            port_str = f"{port}/{protocol.lower()}"
+                
+            row = f"  {port_str:<12} {state_color}{state:<15}{Style.RESET_ALL}"
+            
+            if show_service:
+                row += f" {service:<20}"
+                
+            print(row)
+
+    def print_results(self, context: ScanContext):
+        """
+        In kết quả quét (hỗ trợ cả TCP, UDP, và Ping Scan).
+        """
+        print(context)
+        print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}KẾT QUẢ QUÉT:{Style.RESET_ALL}\n")
+
+        # 1. Lấy tất cả các loại kết quả
+        tcp_results = context.get_data("scan_results") or {}
+        udp_results = context.get_data("scan_results_udp") or {} # <--- Key UDP mới
+        
+        # Xử lý Ping scan (giả sử nó nằm trong 'scan_results')
+        is_ping_scan = (context.scan_type == "ping_scan")
+        
+        # 2. Lấy tất cả các target đã quét
+        all_targets = set(tcp_results.keys()) | set(udp_results.keys())
+
+        # 3. Xử lý trường hợp không tìm thấy/ping scan
+        if not all_targets:
+            if is_ping_scan and tcp_results:
+                 for target, data in tcp_results.items():
+                    state = data.get("state", "down")
+                    if state == "up":
+                        print(f"{Style.BRIGHT}Host {target} is {Fore.GREEN}up{Style.RESET_ALL}")
+                 print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+                 return
+            
+            print(f"{Fore.YELLOW}Không tìm thấy mục tiêu nào.{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
             return
-        
-        print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}SCAN RESULTS{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
-        
-        for target, data in results.items():
-            print(f"{Fore.GREEN}Host: {target}{Style.RESET_ALL}")
-            if 'state' in data:
-                print(f"State:{data['state']}")
-            if 'ports' in data:
-                for port, info in data['ports'].items():
-                    if info['state'] == 'open' or not self.args.open:
-                        print(f"  Port {port}/tcp: {info['state']} ({info.get('service', 'unknown')})")
-            if 'os' in data and self.args.os_detection:
-                print(f"  OS: {data['os']}")
-            print()
-        
-        print(f"{Fore.GREEN}[✓] Scan completed successfully{Style.RESET_ALL}")
-        print(f"    Results are ready for processing by report plugins\n")
-    
+
+        show_service = context.service_version
+
+        # 4. Lặp qua từng target và in kết quả
+        for target in sorted(list(all_targets)):
+            print(f"{Style.BRIGHT}Scan report for {target}{Style.RESET_ALL}")
+            
+            target_has_open_ports = False
+
+            # === In kết quả TCP ===
+            if target in tcp_results:
+                tcp_data = tcp_results[target]
+                if "error" in tcp_data:
+                    print(f"  {Fore.RED}Lỗi quét TCP: {tcp_data['error']}{Style.RESET_ALL}")
+                
+                ports_data = tcp_data.get("ports", {})
+                if ports_data:
+                    target_has_open_ports = True
+                    self._print_port_table("TCP", ports_data, show_service)
+
+            # === In kết quả UDP ===
+            if target in udp_results:
+                udp_data = udp_results[target]
+                if "error" in udp_data:
+                    print(f"  {Fore.RED}Lỗi quét UDP: {udp_data['error']}{Style.RESET_ALL}")
+
+                ports_data = udp_data.get("ports", {})
+                if ports_data:
+                    target_has_open_ports = True
+                    # Thêm 1 dòng trống nếu cả TCP và UDP đều có kết quả
+                    if target_has_open_ports and target in tcp_results and tcp_results[target].get("ports"):
+                        print("") # Dòng trống
+                    
+                    self._print_port_table("UDP", ports_data, show_service)
+            
+            # === In kết quả OS ===
+            if context.os_detection:
+                # (Giả sử OS detection lưu kết quả vào tcp_results)
+                os_guess = tcp_results.get(target, {}).get("os", None) 
+                if os_guess:
+                    print(f"\n  {Fore.MAGENTA}OS Guess:{Style.RESET_ALL} {os_guess}")
+
+            if not target_has_open_ports:
+                 print(f"  {Fore.YELLOW}Host is up, but no open ports/services were found.{Style.RESET_ALL}")
+
+            print("\n") # Dòng trống giữa các target
+
+        print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
     def run(self):
         """Main execution method"""
         # Build and parse arguments
         self.build_parser()
         self.args = self.parser.parse_args()
-        
         # Show advanced help if requested
         if self.args.advanced_help:
             self.print_advanced_help()
@@ -538,18 +542,15 @@ For more examples, use: skyview -H
         # Display configuration
         self.display_config(context)
         
-        # Simulate scan (replace with actual scan engine logic)
-        if context.debug:
-            print(f"{Fore.YELLOW}[DEBUG] Starting simulated scan...{Style.RESET_ALL}")
-        
-        results = {}
-        manager=ScanManagr(context)
-        results=manager.run()
-        print(results)
-        # Display results
-        self.display_results(results)
-        
-        
+        results=self.manager.run_pipline(context,self.args) 
+        output_file_requested = (
+            context.output_normal or 
+            context.output_xml or 
+            context.output_json or 
+            context.output_html
+            )
+        if not output_file_requested:
+            self.print_results(context)
         return 0
 
 
