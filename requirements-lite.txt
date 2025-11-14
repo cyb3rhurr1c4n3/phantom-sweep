@@ -1,6 +1,0 @@
-colorama
-pyfiglet
-scapy
-paramiko
-requests
-bs4

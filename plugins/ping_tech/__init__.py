@@ -1,0 +1,2 @@
+# Ping technique plugins
+

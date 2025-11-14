@@ -1,6 +1,6 @@
 
 import abc
-from typing import Dict, List
+from typing import Dict, List, Optional
 from network_probe.core.context import ScanContext
 from argparse import ArgumentParser
 from network_probe.plugins.plugin_types import PluginType
@@ -20,6 +20,20 @@ class BasePlugin(abc.ABC):
     @abc.abstractmethod
     def run(self, context: ScanContext, args) -> Dict[str, any]:
         pass
+    
+    def metadata(self) -> Optional[Dict[str, any]]:
+        """
+        Return plugin metadata. Override this method in subclasses.
+        Returns a dict with keys: name, display_name, description, category, requires_root, aliases
+        """
+        return {
+            "name": self.name(),
+            "display_name": self.name(),
+            "description": "",
+            "category": "",
+            "requires_root": False,
+            "aliases": []
+        }
 
 class BaseReport(abc.ABC):
     @abc.abstractmethod

@@ -25,9 +25,7 @@ class SkyViewCLI:
     def __init__(self):
         self.parser = argparse.ArgumentParser(...)
         self.args = None
-
         self.manager=PluginManager()
-
         
     def print_banner(self):
         """Display ASCII banner and information"""
@@ -308,7 +306,6 @@ class SkyViewCLI:
                 result.append(target)
         return result
 
-
     def build_context(self, args):
         """Convert CLI args to Context object for engine"""
         # Load targets from file if -iL is specified
@@ -394,6 +391,7 @@ class SkyViewCLI:
             return context.ports
         else:
             return "Default ports (80, 443)"
+    
     def _print_port_table(self, protocol: str, ports_data: dict, show_service: bool):
         """
         Hàm trợ giúp mới: In một bảng cổng (TCP hoặc UDP).
@@ -511,6 +509,7 @@ class SkyViewCLI:
             print("\n") # Dòng trống giữa các target
 
         print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
+    
     def run(self):
         """Main execution method"""
         # Build and parse arguments
@@ -553,7 +552,6 @@ class SkyViewCLI:
             self.print_results(context)
         return 0
 
-
 def main():
     """Entry point"""
     cli = SkyViewCLI()
@@ -565,7 +563,6 @@ def main():
     except Exception as e:
         print(f"{Fore.RED}[!] Fatal error: {e}{Style.RESET_ALL}")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

@@ -25,6 +25,18 @@ class ScanContext:
     debug: bool
     exclude: Optional[List[str]]
     input_list: Optional[str]
+    
+    # New fields for PhantomSweep CLI
+    ping_tech: str = "icmp"
+    scan_tech: str = "connect"
+    service_detection_mode: str = "ai"
+    os_fingerprinting_mode: str = "ai"
+    rate: str = "balanced"
+    exclude_ports: Optional[str] = None
+    output: str = "text"
+    output_file: Optional[str] = None
+    scripts: Optional[List[str]] = None
+    evasion: Optional[List[str]] = None
 
     _data_bag: Dict[str,Any]=field(default_factory=dict)
 
