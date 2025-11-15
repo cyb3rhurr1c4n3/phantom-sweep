@@ -1,2 +1,0 @@
-# Plugin system for PhantomSweep
-
