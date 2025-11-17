@@ -3,3 +3,4 @@ pyfiglet
 scapy
 paramiko
 requests
+beautifulsoup4
