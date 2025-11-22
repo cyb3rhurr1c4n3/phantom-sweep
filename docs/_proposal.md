@@ -31,3 +31,20 @@ PhantomSweep - A fast, lightweight and scalable network security scanner
 -   Slide
 -   Demo
 -   Source code
+
+## Các ý phát sinh
+### Có thể scale ở những mặt nào và bằng cách nào?
+#### Về hiệu suất: scale từ ít lên rất nhiều IP mà vẫn giữ được tốc độ quét nhanh. How?
+--> Tham khảo kiến trúc của Masscan
+#### Về tính năng: 
+##### Scale về kỹ thuật quét (host discovery & port scanning). How?
+--> Tạo các base class chứa các thuộc tính, phương thức bắt buộc cho mỗi kỹ thuật (plugin) quét. Khi thêm kỹ thuật mới thì chỉ cần kế thừa là đảm bảo có thể tích hợp được với ứng dụng.
+##### Scale về script (thêm CVE mới, kỹ thuật kiểm thử mới, nhận diện lỗ hổng mới,...). How?
+--> Cũng tạo ra base class chứa các thuộc tính, phương thức bắt buộc để mỗi script tuân theo (ví dụ run(scancontext, scanresult)).
+##### Scale về định dạng xuất kết quả. How?
+--> Cũng tạo ra base class chứa các thuộc tính, phương thức bắt buộc để mỗi plugin xuất phải tuân theo. Làm sao để Manager chỉ cần gọi đến reporter.export() mà không cần biết nó được code thế nào.
+#### Về sự thông minh: 
+##### Scale về độ thông minh (tính chính xác) của các tính năng AI. How?
+--> Train lại hoặc update model với độ chính xác cao hơn và tích hợp lại một cách dễ dàng do ứng dụng đã có khuôn sẵn.
+##### AI ngày càng mạnh mẽ và thông minh hơn qua quá trình sử dụng. How?
+--> AI có khả năng học hỏi nên càng dùng nó sẽ càng thông minh.

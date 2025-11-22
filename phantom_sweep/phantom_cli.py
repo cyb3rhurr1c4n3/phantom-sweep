@@ -13,6 +13,7 @@ from phantom_sweep.core.scan_context import (
     PerformanceAndEvasionConfig, OutputConfig
 )
 from phantom_sweep.core.scan_result import ScanResult
+from phantom_sweep.core.parsers import parse_targets, parse_exclude_hosts
 from phantom_sweep.module.manager import Manager
 
 try:
@@ -29,6 +30,7 @@ class PhantomCLI:
 
     VERSION = "1.0.0"
     
+    # Essential functionfunction
     def __init__(self):
         self.parser = argparse.ArgumentParser(
             prog="phantom",
@@ -58,9 +60,6 @@ class PhantomCLI:
         print("    Usage of PhantomSweep for attacking targets without prior mutual consent is illegal.")
         print("    It is the end user's responsibility to comply with all applicable laws.")
         print("    Developers assume no liability for misuse or damage caused by this tool.\n")
-    
-    def print_advanced_help(self): # Implement this
-        pass
 
     def build_parser(self):
         """Build argument parser with all options"""
@@ -95,20 +94,20 @@ class PhantomCLI:
         )
         target_group.add_argument(
             "host",
-            nargs="+",
+            nargs="*",
             metavar="HOST",
             help="""Target host(s) to scan. Can be:
             - Single IP: 192.168.1.1
-            - Multiple IPs: 192.168.1.1 192.168.1.2]
-            - IP range: 192.168.1.1-100]
-            - CIDR block: 192.168.1.0/24]
-            - Domain name: scanme.nmap.org]"""
+            - Multiple IPs: 192.168.1.1 192.168.1.2
+            - IP range: 192.168.1.1-100 or 192.168.1.1-192.168.1.100
+            - CIDR block: 192.168.1.0/24
+            - Domain name: scanme.nmap.org"""
         )
         target_group.add_argument(
             "--host-list",
             metavar="FILENAME",
             dest="host_list",
-            help="Read targets from file (one per line). Required if --host is not specified."
+            help="Read targets from file (one per line). Required if HOST is not specified."
         )
         target_group.add_argument(
             "--exclude-host",
@@ -179,9 +178,9 @@ class PhantomCLI:
         scan_group.add_argument(
             "--service-detection-mode",
             choices=["ai", "normal", "off"],
-            default="ai",
+            default="off",
             dest="service_detection_mode",
-            help="""Service detection mode (default: ai):
+            help="""Service detection mode (default: off):
             - ai: AI-powered service and version detection
             - normal: Banner-based detection
             - off: Disable service detection"""
@@ -189,9 +188,9 @@ class PhantomCLI:
         scan_group.add_argument(
             "--os-fingerprinting-mode",
             choices=["ai", "normal", "off"],
-            default="ai",
+            default="off",
             dest="os_fingerprinting_mode",
-            help="""OS fingerprinting mode (default: ai):
+            help="""OS fingerprinting mode (default: off):
             - ai: AI-powered OS detection
             - normal: TTL/Window size-based detection
             - off: Disable OS fingerprinting"""
@@ -231,10 +230,10 @@ class PhantomCLI:
         perf_group.add_argument(
             "--timeout",
             type=float,
-            default=1.0,
+            default=5.0,
             dest="timeout",
             metavar="SECONDS",
-            help="Timeout in seconds for each probe (default: 1.0). AI may auto-adjust if --rate stealthy."
+            help="Timeout in seconds for each probe (default: 5.0). AI may auto-adjust if --rate stealthy."
         )
         perf_group.add_argument(
             "--evasion-mode",
@@ -294,9 +293,14 @@ class PhantomCLI:
     def validate_args(self, args):
         """Validate parsed arguments"""
         
-        # Check that either --host or --input-file is provided
+        # Handle --example flag
+        if args.example:
+            self.print_examples()
+            return False
+        
+        # Check that either --host or --host-list is provided
         if not args.host and not args.host_list:
-            print(f"{Fore.RED}[!] Error: No targets specified. Provide --host or --input-file{Style.RESET_ALL}")
+            print(f"{Fore.RED}[!] Error: No targets specified. Provide HOST or --host-list{Style.RESET_ALL}")
             self.parser.print_help()
             return False
         
@@ -317,31 +321,6 @@ class PhantomCLI:
         
         return True
     
-    def build_targets(self, targets: List[str]) -> List[str]:
-        """Build target list from various formats"""
-        result = []
-        for target in targets:
-            if '/' in target:
-                # CIDR
-                try:
-                    network = ipaddress.ip_network(target, strict=False)
-                    result.extend([str(ip) for ip in network.hosts()])
-                except ValueError:
-                    result.append(target)
-            elif '-' in target and target.count('.') == 3:
-                # IP range like 192.168.1.1-100
-                parts = target.split('.')
-                if '-' in parts[-1]:
-                    base = '.'.join(parts[:-1])
-                    start, end = map(int, parts[-1].split('-'))
-                    for i in range(start, end + 1):
-                        result.append(f"{base}.{i}")
-                else:
-                    result.append(target)
-            else:
-                result.append(target)
-        return result
-    
     def build_context(self, args) -> ScanContext:
         """Convert CLI args to ScanContext with clean, structured configuration"""
         # Build target configuration
@@ -356,7 +335,12 @@ class PhantomCLI:
         
         # Remove duplicates and expand targets (CIDR, ranges, etc.)
         hosts = list(set([h for h in hosts if h]))
-        hosts = self.build_targets(hosts)
+        hosts = parse_targets(hosts)
+        
+        # Apply exclude_host if specified
+        if args.exclude_host:
+            exclude_host_list = list(args.exclude_host)
+            hosts = parse_exclude_hosts(exclude_host_list, hosts)
         
         target_config = TargetConfig(
             host=hosts,
@@ -365,10 +349,12 @@ class PhantomCLI:
         )
         
         # Build port configuration
+        # exclude_port can be a list from CLI (nargs="+")
+        exclude_port_list = list(args.exclude_port) if args.exclude_port else None
         port_config = PortConfig(
             port=args.port,
             port_list=args.port_list,
-            exclude_port=args.exclude_port
+            exclude_port=exclude_port_list
         )
         
         # Build pipeline configuration
@@ -381,11 +367,16 @@ class PhantomCLI:
         )
         
         # Build performance configuration
+        # Handle evasion_mode: if default "none" is set, treat as empty list
+        evasion_mode = list(args.evasion_mode) if args.evasion_mode else []
+        # If only "none" is in the list, treat as no evasion
+        if evasion_mode == ["none"]:
+            evasion_mode = []
         performance_config = PerformanceAndEvasionConfig(
             rate=args.rate,
             thread=args.thread,
             timeout=args.timeout,
-            evasion_mode=list(args.evasion_mode) if args.evasion_mode else []
+            evasion_mode=evasion_mode
         )
         
         # Build output configuration
@@ -404,25 +395,48 @@ class PhantomCLI:
             verbose=args.verbose,
             debug=args.debug
         )
-    
-    def run_scan(self, context: ScanContext) -> ScanResult:
-        """
-        Run the scan pipeline using Manager.
-        
-        Args:
-            context: ScanContext containing scan configuration
-            
-        Returns:
-            ScanResult containing all scan results
-        """
-        # Use Manager to orchestrate the scan
-        result = self.manager.run_scan(context)
-        
-        # Generate output using reporter modules
-        self.generate_output(context, result)
-        
-        return result
-    
+
+    def print_examples(self):
+        """Show detailed usage examples"""
+        examples = f"""
+{Fore.CYAN}{'='*70}{Style.RESET_ALL}
+{Fore.CYAN}PHANTOMSWEEP USAGE EXAMPLES{Style.RESET_ALL}
+{Fore.CYAN}{'='*70}{Style.RESET_ALL}
+
+{Fore.YELLOW}1. Default scan (uses default options: top_100 ports, icmp ping, connect scan){Style.RESET_ALL}
+   python phantom.py 192.168.1.1
+
+{Fore.YELLOW}2. Custom network scan with specific ports and output format{Style.RESET_ALL}
+   python phantom.py 192.168.1.0/24 --port 80,443 --output json --output-file results.json
+
+{Fore.YELLOW}3. Stealth scan with AI evasion{Style.RESET_ALL}
+   python phantom.py 192.168.1.0/24 --ping-tech none --scan-tech stealth --rate stealthy --evasion-mode randomize
+
+{Fore.YELLOW}4. Full scan with all scripts and multiple output formats{Style.RESET_ALL}
+   python phantom.py 192.168.1.1 --port all --script all --output json,xml
+
+{Fore.YELLOW}5. UDP scan on specific ports{Style.RESET_ALL}
+   python phantom.py 192.168.1.1 --scan-tech udp --port 53,161
+
+{Fore.YELLOW}6. Scan with exclusions{Style.RESET_ALL}
+   python phantom.py 192.168.1.0/24 --exclude-host 192.168.1.1 192.168.1.100 --port top_1000 --exclude-port 80,443
+
+{Fore.YELLOW}7. Scan from file with service detection{Style.RESET_ALL}
+   python phantom.py --host-list targets.txt --port top_100 --service-detection-mode normal
+
+{Fore.YELLOW}8. IP range scan{Style.RESET_ALL}
+   python phantom.py 192.168.1.1-192.168.1.100 --port 22,80,443
+
+{Fore.YELLOW}9. Multiple targets with OS fingerprinting{Style.RESET_ALL}
+   python phantom.py 192.168.1.1 192.168.1.2 192.168.1.3 --os-fingerprinting-mode ai
+
+{Fore.YELLOW}10. High-speed scan{Style.RESET_ALL}
+    python phantom.py 192.168.1.0/24 --rate insane --thread 100 --timeout 1.0
+
+{Fore.CYAN}{'='*70}{Style.RESET_ALL}
+"""
+        print(examples)
+
     def display_config(self, context):
         """Display the scan configuration"""
         if context.verbose or context.debug:
@@ -449,15 +463,25 @@ class PhantomCLI:
             print(f"{Fore.YELLOW}Excluded Targets:{Style.RESET_ALL} {', '.join(context.exclude) if context.exclude else 'None'}")
             print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
 
-    def generate_output(self, context: ScanContext, result: ScanResult):
-        """Generate output in specified formats"""
-        output_formats = context.output.output_format.split(',')
-        for fmt in output_formats:
-            fmt = fmt.strip()
-            # TODO: Use reporter modules instead of plugins
-            # For now, output is handled by print_results
-            pass
-    
+    def run_scan(self, context: ScanContext) -> ScanResult:
+        """
+        Run the scan pipeline using Manager.
+        
+        Args:
+            context: ScanContext containing scan configuration
+            
+        Returns:
+            ScanResult containing all scan results
+        """
+        # Use Manager to orchestrate the scan
+        result = self.manager.run_scan(context)
+        
+        # Generate output using reporter modules (if not "none")
+        if context.output.output_format != "none":
+            self.manager.generate_output(context, result)
+        
+        return result
+      
     def print_results(self, result: ScanResult, context: ScanContext):
         """Print results to console if no output file specified"""
         if context.output.output_format != 'none':
@@ -555,6 +579,8 @@ class PhantomCLI:
             return 1
         
         return 0
+
+
 
 
 def main():
