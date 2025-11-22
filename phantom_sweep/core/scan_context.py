@@ -18,7 +18,7 @@ class PortConfig:
     """Port configuration (from --port, --exclude-port)"""
     port: str = "top_100"  # "top_100", "top_1000", "all", or port specification like "80,443" or "1-1000"
     port_list: Optional[str] = None
-    exclude_port: Optional[str] = None
+    exclude_port: Optional[List[str]] = None  # Can be list of strings like ["21", "22,23", "top_100"]
 
 
 @dataclass
