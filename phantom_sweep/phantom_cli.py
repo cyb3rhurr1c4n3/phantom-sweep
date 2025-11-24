@@ -202,13 +202,6 @@ class PhantomCLI:
             dest="script",
             help="Run one or more extension scripts (e.g., ftp_anon http_risky ssl_check)"
         )
-        scan_group.add_argument(
-        "--ai-evasion",
-        action="store_true",
-        dest="ai_evasion",
-        help="""Enable AI-powered adaptive evasion (requires trained model).
-        Uses Deep Q-Learning to dynamically adjust scan strategy and evade IDS/IPS."""
-        )
         # Performance and Evasion
         perf_group = parser.add_argument_group(
             ':#################### PERFORMANCE AND EVASION ####################',
@@ -242,18 +235,19 @@ class PhantomCLI:
             help="Timeout in seconds for each probe (default: 5.0). AI may auto-adjust if --rate stealthy."
         )
         perf_group.add_argument(
-            "--evasion-mode",
-            nargs="+",
-            choices=["randomize", "fragment", "decoy", "spoof", "none"],
-            default="none",
-            dest="evasion_mode",
-            metavar="TECHNIQUE",
-            help="""Evasion techniques (can combine multiple):
-            - randomize: Randomize host and port order
-            - fragment: Fragment packets
-            - decoy: Use decoy IPs
-            - spoof: Spoof source IP"""
-        )
+    "--evasion-mode",
+        nargs="+",
+        choices=["randomize", "fragment", "decoy", "spoof", "ai"],  # Add "ai" option
+        default=[],  # Empty list by default
+        dest="evasion_mode",
+        metavar="TECHNIQUE",
+        help="""Evasion techniques (can combine multiple):
+        - randomize: Randomize host and port order
+        - fragment: Fragment packets
+        - decoy: Use decoy IPs
+        - spoof: Spoof source IP
+        - ai: AI-powered adaptive evasion (experimental)"""
+    )
         
         # Extension & Output
         ext_group = parser.add_argument_group(
@@ -374,15 +368,16 @@ class PhantomCLI:
         
         # Build performance configuration
         # Handle evasion_mode: if default "none" is set, treat as empty list
-        evasion_mode = list(args.evasion_mode) if args.evasion_mode else []
-        # If only "none" is in the list, treat as no evasion
-        if evasion_mode == ["none"]:
-            evasion_mode = []
+        evasion_mode = []
+        if hasattr(args, 'evasion_mode') and args.evasion_mode:
+        # args.evasion_mode is already a list from nargs="+"
+            evasion_mode = args.evasion_mode if isinstance(args.evasion_mode, list) else [args.evasion_mode]
+    
         performance_config = PerformanceAndEvasionConfig(
-            rate=args.rate,
-            thread=args.thread,
-            timeout=args.timeout,
-            evasion_mode=evasion_mode
+        rate=args.rate,
+        thread=args.thread,
+        timeout=args.timeout,
+        evasion_mode=evasion_mode  # Now properly ['ai'] or ['randomize', 'ai']
         )
         
         # Build output configuration
@@ -401,9 +396,8 @@ class PhantomCLI:
             verbose=args.verbose,
             debug=args.debug
         )
-        if hasattr(args, 'ai_evasion') and args.ai_evasion:
-            context.set_intermediate_data('ai_evasion', True)
-
+        if args.debug:
+            print(f"[DEBUG] Evasion mode: {evasion_mode}")
         return context
 
     def print_examples(self):
@@ -576,6 +570,7 @@ class PhantomCLI:
         
         # Run scan
         try:
+            print(f"[DEBUG] IN RA CONTEXT {context}")
             result = self.run_scan(context)
             self.print_results(result, context)
         except KeyboardInterrupt:

@@ -115,7 +115,7 @@ class Manager:
     def _run_port_scanning(self, context: ScanContext):
         """Run port scanning phase"""
         scan_tech = context.pipeline.scan_tech
-        
+        print(f"[DEBUG] {scan_tech}")
         # Map scan_tech to scanner name
         tech_map = {
             "connect": "connect",
@@ -124,21 +124,24 @@ class Manager:
         }
         
         scanner_name = tech_map.get(scan_tech, "connect")
+        print(f"[DEBUG] IN RA SCANNER NAME {scanner_name}")
         scanner_class = PORT_SCANNING_SCANNERS.get(scanner_name)
+        print(f"[DEBUG] IN RA SCAN CLASS {scanner_class}")
         
         if not scanner_class:
             if context.verbose:
                 print(f"[!] Unknown scan tech: {scan_tech}, using TCP Connect scan")
             scanner_class = PORT_SCANNING_SCANNERS.get("connect")
         
-        # Check root requirement
-        if scanner_class().requires_root() :
-            if context.verbose:
-                print(f"[!] {scan_tech} scan requires root privileges. Falling back to TCP Connect scan.")
-            scanner_class = PORT_SCANNING_SCANNERS.get("connect")
+        # # Check root requirement
+        # if scanner_class().requires_root() :
+        #     if context.verbose:
+        #         print(f"[!] {scan_tech} scan requires root privileges. Falling back to TCP Connect scan.")
+        #     scanner_class = PORT_SCANNING_SCANNERS.get("connect")
         
         # Create and run scanner
         scanner = scanner_class()
+        print(f"[DEBUG] IN RA SCANNER {scanner}")
         try:
             scanner.scan(context, self.result)
             if context.verbose:

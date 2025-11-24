@@ -13,7 +13,7 @@ from phantom_sweep.module._base.scanner_base import ScannerBase
 
 # Import AI enhancer
 try:
-    from phantom_sweep.module.scanner.ai.scanner_enhancer import AIScannerEnhancer
+    from phantom_sweep.module.scanner.port_scanning.ai.scanner_enhancer import AIScannerEnhancer
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
@@ -67,14 +67,21 @@ class TCPSynScanner(ScannerBase, AIScannerEnhancer):
         if context.ports.exclude_port:
             ports = parse_exclude_ports(context.ports.exclude_port, ports)
         
-        # Check if AI evasion is enabled
+        # === FIX: Check AI evasion properly ===
         ai_mode = False
-        if AI_AVAILABLE and hasattr(context, '_intermediate_data'):
-            ai_mode = context.get_intermediate_data('ai_evasion', False)
-            if ai_mode:
-                ai_mode = self.enable_ai(verbose=context.verbose)
         
-        if context.verbose:
+        # Check if evasion_mode contains "True" string (from CLI)
+        if context.performance.evasion_mode and 'True' in context.performance.evasion_mode:
+            if AI_AVAILABLE:
+                # Try to enable AI
+                ai_mode = self.enable_ai(verbose=context.verbose or context.debug)
+                if ai_mode and (context.verbose or context.debug):
+                    print("[AI] ✓ Evasion mode: ENABLED")
+            else:
+                if context.verbose or context.debug:
+                    print("[AI] ✗ AI not available (missing dependencies)")
+        
+        if context.verbose or context.debug:
             mode_str = "AI-Enhanced " if ai_mode else ""
             print(f"[*] Starting {mode_str}TCP SYN scan on {len(hosts_to_scan)} hosts, {len(ports)} ports...")
         
@@ -82,7 +89,7 @@ class TCPSynScanner(ScannerBase, AIScannerEnhancer):
         asyncio.run(self._async_scan(context, result, hosts_to_scan, ports, ai_mode))
         
         # Print AI stats if enabled
-        if ai_mode and context.verbose:
+        if ai_mode and (context.verbose or context.debug):
             stats = self.get_ai_stats()
             if stats:
                 print(f"\n[AI] Scan Statistics:")
@@ -103,6 +110,7 @@ class TCPSynScanner(ScannerBase, AIScannerEnhancer):
     async def _normal_async_scan(self, context: ScanContext, result: ScanResult,
                                  hosts: list, ports: list):
         """Normal async scan (original implementation)"""
+        print("[DEBUG] NORMAL DA DUOC GOI")
         # Shared data structures
         sent_packets: Dict[Tuple[str, int], float] = {}
         port_states: Dict[Tuple[str, int], str] = {}
@@ -137,12 +145,15 @@ class TCPSynScanner(ScannerBase, AIScannerEnhancer):
     async def _ai_async_scan(self, context: ScanContext, result: ScanResult,
                             hosts: List[str], ports: List[int]):
         """AI-enhanced async scan with adaptive strategy"""
+        if context.debug:
+            print("[DEBUG] ✓ AI async scan started")
+        
         for host in hosts:
-            if context.verbose:
+            if context.verbose or context.debug:
                 print(f"\n[*] Scanning {host} (AI mode)...")
             
             # Initialize AI for this host
-            self.init_ai_for_scan(len(ports), context.verbose)
+            self.init_ai_for_scan(len(ports), context.verbose or context.debug)
             
             # Resolve hostname
             try:
@@ -195,7 +206,7 @@ class TCPSynScanner(ScannerBase, AIScannerEnhancer):
             
             # Check abort
             if self.should_ai_abort():
-                if context.verbose:
+                if context.verbose or context.debug:
                     print(f"  [!] Scan aborted for {host} (AI detected too many alerts)")
     
     async def _scan_batch_with_config(self, ip: str, ports: List[int],
@@ -377,9 +388,6 @@ class TCPSynScanner(ScannerBase, AIScannerEnhancer):
                 if context.debug:
                     print(f"  [DEBUG-TCP-SYN] Error in receiver: {e}")
                 continue
-        
-        # Final batch check (existing code...)
-        # ... keep existing final batch check code
     
     def _get_rate_limit(self, rate: str) -> float:
         """Convert rate string to packets per second."""

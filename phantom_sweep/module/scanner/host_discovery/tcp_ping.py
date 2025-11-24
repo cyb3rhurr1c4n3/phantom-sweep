@@ -1,5 +1,5 @@
 """
-TCP SYN/ACK Ping Host Discovery Scanner
+TCP SYN/ACK Ping Host Discovery Scanner with Auto-fallback
 """
 import asyncio
 import socket
@@ -16,42 +16,54 @@ conf.verb = 0
 class TCPPingScanner(ScannerBase):
     """
     TCP SYN/ACK Ping Host Discovery Scanner.
-    Sends TCP SYN packets to common ports to discover hosts.
-    Uses async architecture with sender and receiver threads.
+    Auto-fallback: If no hosts respond, assumes all hosts are up.
     """
     
-    # Common ports for TCP ping
     COMMON_PORTS = [80, 443, 22, 21, 25, 53, 110, 143, 993, 995]
     
     def name(self) -> str:
         return "tcp_ping"
     
     def requires_root(self) -> bool:
-        return True  # Raw sockets for TCP SYN require root
+        return True
     
     def scan(self, context: ScanContext, result: ScanResult) -> None:
         """
-        Perform TCP SYN/ACK ping host discovery using async sender/receiver architecture.
+        Perform TCP SYN/ACK ping host discovery with auto-fallback.
         """
         hosts_to_scan = context.targets.host
         if not hosts_to_scan:
             return
         
-        if context.verbose:
+        if context.verbose or context.debug:
             print(f"[*] Starting TCP SYN/ACK ping discovery for {len(hosts_to_scan)} hosts...")
         
         # Run async scan
-        asyncio.run(self._async_scan(context, result, hosts_to_scan))
+        try:
+            asyncio.run(self._async_scan(context, result, hosts_to_scan))
+        except Exception as e:
+            if context.debug:
+                print(f"[DEBUG-TCP-Ping] Error: {e}")
+        
+        # === AUTO-FALLBACK ===
+        up_count = sum(1 for h in result.hosts.values() if h.state == "up")
+        
+        if up_count == 0:
+            if context.verbose or context.debug:
+                print(f"[!] TCP ping failed to discover any hosts")
+                print(f"[*] Assuming all {len(hosts_to_scan)} host(s) are up (auto-fallback)")
+            
+            for host in hosts_to_scan:
+                result.add_host(host, state="up")
+        
+        elif context.verbose or context.debug:
+            print(f"[*] Host discovery completed: {up_count}/{len(hosts_to_scan)} hosts up")
     
     async def _async_scan(self, context: ScanContext, result: ScanResult, hosts: list):
-        """
-        Async scan with sender and receiver tasks.
-        """
-        # Shared data structure for results
+        """Async scan with sender and receiver tasks."""
         discovered_hosts: Set[str] = set()
-        sent_packets: Dict[tuple, float] = {}  # (host, port) -> timestamp
+        sent_packets: Dict[tuple, float] = {}
         
-        # Create tasks
         sender_task = asyncio.create_task(
             self._sender(context, hosts, sent_packets)
         )
@@ -59,10 +71,7 @@ class TCPPingScanner(ScannerBase):
             self._receiver(context, hosts, sent_packets, discovered_hosts, result)
         )
         
-        # Wait for sender to finish
         await sender_task
-        
-        # Wait for responses
         await asyncio.sleep(context.performance.timeout * 2)
         receiver_task.cancel()
         
@@ -70,45 +79,33 @@ class TCPPingScanner(ScannerBase):
             await receiver_task
         except asyncio.CancelledError:
             pass
-        
-        # Mark undiscovered hosts as down
-        for host in hosts:
-            if host not in discovered_hosts:
-                result.add_host(host, state="down")
     
     async def _sender(self, context: ScanContext, hosts: list, 
                      sent_packets: Dict[tuple, float]):
-        """
-        Sender thread: Send TCP SYN packets to common ports quickly.
-        """
+        """Sender thread: Send TCP SYN packets."""
         rate_limit = self._get_rate_limit(context.performance.rate)
         
         for host in hosts:
             try:
                 ip = socket.gethostbyname(host)
                 
-                # Send SYN to common ports
                 for port in self.COMMON_PORTS:
                     packet = IP(dst=ip) / TCP(dport=port, flags="S")
                     send(packet, verbose=0)
                     sent_packets[(ip, port)] = time.time()
                     
-                    # Rate limiting
                     if rate_limit > 0:
                         await asyncio.sleep(1.0 / rate_limit)
                         
-            except (socket.gaierror, Exception) as e:
+            except Exception as e:
                 if context.debug:
-                    print(f"  [DEBUG-TCP-Ping] Error sending to {host}: {e}")
-                continue
+                    print(f"[DEBUG-TCP-Ping] Error sending to {host}: {e}")
     
     async def _receiver(self, context: ScanContext, hosts: list,
                        sent_packets: Dict[tuple, float],
                        discovered_hosts: Set[str],
                        result: ScanResult):
-        """
-        Receiver thread: Listen for TCP SYN/ACK or RST responses.
-        """
+        """Receiver thread: Listen for TCP responses."""
         timeout = context.performance.timeout * 2
         start_time = time.time()
         
@@ -117,7 +114,6 @@ class TCPPingScanner(ScannerBase):
                 await asyncio.sleep(0.1)
                 
                 if sent_packets:
-                    # Check for responses
                     target_key = max(sent_packets.keys(), key=lambda k: sent_packets[k])
                     target_ip, target_port = target_key
                     
@@ -129,31 +125,29 @@ class TCPPingScanner(ScannerBase):
                             tcp = received.getlayer(TCP)
                             src_ip = received[IP].src
                             
-                            # SYN/ACK (0x12) or RST (0x14) means host is up
                             if tcp.flags in [0x12, 0x14]:
                                 if src_ip not in discovered_hosts:
                                     discovered_hosts.add(src_ip)
                                     result.add_host(src_ip, state="up")
-                                    if context.verbose:
-                                        print(f"  [+] Host {src_ip} is up (TCP response)")
                                     
-                                    # Remove all packets for this host
+                                    if context.verbose or context.debug:
+                                        print(f"  [+] Host {src_ip} is UP (TCP response)")
+                                    
                                     keys_to_remove = [k for k in sent_packets.keys() if k[0] == src_ip]
                                     for k in keys_to_remove:
                                         del sent_packets[k]
             except Exception as e:
                 if context.debug:
-                    print(f"  [DEBUG-TCP-Ping] Error in receiver: {e}")
-                continue
+                    print(f"[DEBUG-TCP-Ping] Receiver error: {e}")
         
-        # Final check: Use sr() to get all responses
+        # Final check
         try:
             packets = []
             for host in hosts:
                 if host not in discovered_hosts:
                     try:
                         ip = socket.gethostbyname(host)
-                        for port in self.COMMON_PORTS[:3]:  # Check first 3 ports
+                        for port in self.COMMON_PORTS[:3]:
                             packets.append(IP(dst=ip) / TCP(dport=port, flags="S"))
                     except:
                         continue
@@ -181,4 +175,3 @@ class TCPPingScanner(ScannerBase):
             "insane": 10000
         }
         return rate_map.get(rate, 100)
-

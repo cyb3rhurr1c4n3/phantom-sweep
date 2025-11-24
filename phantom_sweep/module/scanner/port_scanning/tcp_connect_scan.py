@@ -28,6 +28,7 @@ class TCPConnectScanner(ScannerBase):
         """
         Perform TCP Connect port scanning using async concurrent connections.
         """
+        print("[DEBUG] TOI LUON DC GOI HA*****************************")
         # Get hosts to scan (only up hosts from discovery phase)
         hosts_to_scan = [host for host, info in result.hosts.items() 
                         if info.state == "up"]
