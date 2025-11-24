@@ -4,3 +4,7 @@ scapy
 paramiko
 requests
 beautifulsoup4
+torch 
+numpy 
+pandas 
+scikit-learn 
