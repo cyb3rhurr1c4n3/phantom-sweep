@@ -202,7 +202,13 @@ class PhantomCLI:
             dest="script",
             help="Run one or more extension scripts (e.g., ftp_anon http_risky ssl_check)"
         )
-        
+        scan_group.add_argument(
+        "--ai-evasion",
+        action="store_true",
+        dest="ai_evasion",
+        help="""Enable AI-powered adaptive evasion (requires trained model).
+        Uses Deep Q-Learning to dynamically adjust scan strategy and evade IDS/IPS."""
+        )
         # Performance and Evasion
         perf_group = parser.add_argument_group(
             ':#################### PERFORMANCE AND EVASION ####################',
@@ -386,7 +392,7 @@ class PhantomCLI:
         )
         
         # Create and return ScanContext
-        return ScanContext(
+        context= ScanContext(
             targets=target_config,
             ports=port_config,
             pipeline=pipeline_config,
@@ -395,6 +401,10 @@ class PhantomCLI:
             verbose=args.verbose,
             debug=args.debug
         )
+        if hasattr(args, 'ai_evasion') and args.ai_evasion:
+            context.set_intermediate_data('ai_evasion', True)
+
+        return context
 
     def print_examples(self):
         """Show detailed usage examples"""

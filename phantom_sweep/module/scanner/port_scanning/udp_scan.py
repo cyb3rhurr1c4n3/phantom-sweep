@@ -31,6 +31,7 @@ class UDPScanner(ScannerBase):
         """
         Perform UDP port scanning using async sender/receiver architecture.
         """
+        print("[TEST] UDP WAS HERE!*******************************************************")
         # Get hosts to scan (only up hosts from discovery phase)
         hosts_to_scan = [host for host, info in result.hosts.items() 
                         if info.state == "up"]

@@ -87,7 +87,7 @@ class Manager:
             return
         
         # Check root requirement
-        if scanner_class().requires_root() and os.geteuid() != 0:
+        if scanner_class().requires_root():
             if context.verbose:
                 print(f"[!] {ping_tech} discovery requires root privileges. Assuming all hosts are up.")
             for host in context.targets.host:
@@ -132,7 +132,7 @@ class Manager:
             scanner_class = PORT_SCANNING_SCANNERS.get("connect")
         
         # Check root requirement
-        if scanner_class().requires_root() and os.geteuid() != 0:
+        if scanner_class().requires_root() :
             if context.verbose:
                 print(f"[!] {scan_tech} scan requires root privileges. Falling back to TCP Connect scan.")
             scanner_class = PORT_SCANNING_SCANNERS.get("connect")
