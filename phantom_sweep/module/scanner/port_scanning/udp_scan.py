@@ -49,7 +49,7 @@ class UDPScanner(ScannerBase):
             return
         
         # Parse ports
-        ports = parse_port_spec(context.ports.port, context.ports.port_list)
+        ports = parse_port_spec(context.ports.port, context.ports.port_list, is_udp=True)
         if context.ports.exclude_port:
             ports = parse_exclude_ports(context.ports.exclude_port, ports)
         

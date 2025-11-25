@@ -4,9 +4,9 @@ Parsers for targets and ports specifications.
 import ipaddress    
 from typing import List, Set
 import os
-from phantom_sweep.core.constants import TOP_100_PORTS, TOP_1000_PORTS
+from phantom_sweep.core.constants import *
 
-def parse_port_spec(port_spec: str, port_list_file: str = None) -> List[int]:
+def parse_port_spec(port_spec: str, port_list_file: str = None, is_udp = False) -> List[int]:
     """
     Parse port specification string.
     
@@ -21,6 +21,7 @@ def parse_port_spec(port_spec: str, port_list_file: str = None) -> List[int]:
     Args:
         port_spec: Port specification string
         port_list_file: Optional file path to read ports from (one per line)
+        is_udp: If True then the top 100/top 1000 most common ports will be for UDP
         
     Returns:
         List[int]: Sorted list of port numbers
@@ -41,17 +42,21 @@ def parse_port_spec(port_spec: str, port_list_file: str = None) -> List[int]:
             pass  # If file read fails, continue with port_spec parsing
     
     if not port_spec:
-        return sorted(list(ports)) if ports else TOP_100_PORTS
+        if is_udp:
+            return sorted(list(ports)) if ports else TOP_100_PORTS_UDP
+        return sorted(list(ports)) if ports else TOP_100_PORTS_TCP
     
     port_spec = port_spec.strip().lower()
     
     # Special cases
-    if port_spec == "top_100":
-        ports.update(TOP_100_PORTS)
-    elif port_spec == "top_1000":
-        ports.update(TOP_1000_PORTS)
-    elif port_spec == "all":
+    if port_spec == "all":
         ports.update(range(1, 65536))
+    elif port_spec == "top_100":
+        if is_udp: ports.update(TOP_100_PORTS_UDP)
+        else:      ports.update(TOP_100_PORTS_TCP)
+    elif port_spec == "top_1000":
+        if is_udp: ports.update(TOP_1000_PORTS_TCP)
+        else:      ports.update(TOP_1000_PORTS_TCP)
     else:
         # Parse comma-separated and ranges
         parts = port_spec.split(',')
@@ -78,7 +83,9 @@ def parse_port_spec(port_spec: str, port_list_file: str = None) -> List[int]:
                 except ValueError:
                     continue
     
-    return sorted(list(ports)) if ports else TOP_100_PORTS
+    if is_udp:
+        return sorted(list(ports)) if ports else TOP_100_PORTS_UDP
+    return sorted(list(ports)) if ports else TOP_100_PORTS_TCP
 
 def parse_exclude_ports(exclude_spec: List[str], ports: List[int]) -> List[int]:
     """
