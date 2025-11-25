@@ -59,22 +59,31 @@ class TCPConnectScanner(ScannerBase):
                          hosts: list, ports: list):
         """
         Async scan with concurrent connection attempts.
+        Optimized to process in batches for better performance.
         """
         # Create semaphore to limit concurrent connections
         max_concurrent = context.performance.thread
         semaphore = asyncio.Semaphore(max_concurrent)
         
         # Create tasks for all host:port combinations
-        tasks = []
+        # Process in batches to avoid creating too many tasks at once
+        batch_size = max_concurrent * 10
+        all_tasks = []
         for host in hosts:
             for port in ports:
-                task = asyncio.create_task(
+                all_tasks.append((host, port))
+        
+        # Process in batches
+        for i in range(0, len(all_tasks), batch_size):
+            batch = all_tasks[i:i + batch_size]
+            tasks = [
+                asyncio.create_task(
                     self._scan_port(context, result, host, port, semaphore)
                 )
-                tasks.append(task)
-        
-        # Wait for all tasks to complete
-        await asyncio.gather(*tasks, return_exceptions=True)
+                for host, port in batch
+            ]
+            # Wait for batch to complete before starting next batch
+            await asyncio.gather(*tasks, return_exceptions=True)
     
     async def _scan_port(self, context: ScanContext, result: ScanResult,
                         host: str, port: int, semaphore: asyncio.Semaphore):

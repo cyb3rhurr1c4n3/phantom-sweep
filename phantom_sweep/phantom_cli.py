@@ -2,11 +2,8 @@
 PhantomSweep CLI
 """
 import argparse
-import ipaddress
 import sys
 import os
-from typing import List
-from argparse import SUPPRESS
 
 from phantom_sweep.core.scan_context import (
     ScanContext, TargetConfig, PortConfig, PipelineConfig,
@@ -30,7 +27,7 @@ class PhantomCLI:
 
     VERSION = "1.0.0"
     
-    # Essential functionfunction
+    # Essential function
     def __init__(self):
         self.parser = argparse.ArgumentParser(
             prog="phantom",
@@ -112,9 +109,9 @@ class PhantomCLI:
         target_group.add_argument(
             "--exclude-host",
             nargs="+",
-            metavar="IP",
+            metavar="HOST",
             dest="exclude_host",
-            help="Exclude IP(s) from scan. Same format as --host."
+            help="Exclude HOST(s) from scan. Same format as --host."
         )
         
         # Port Specification
@@ -167,13 +164,14 @@ class PhantomCLI:
         )
         scan_group.add_argument(
             "--scan-tech",
-            choices=["connect", "stealth", "udp"],
+            choices=["connect", "stealth", "udp", "none"],
             default="connect",
             dest="scan_tech",
             help="""Port scanning technique (default: connect):
             - connect: TCP Connect scan (no root required)
             - stealth: TCP SYN scan (requires root, faster, stealthier)
-            - udp: UDP scan"""
+            - udp: UDP scan
+            - none: Skip port scanning (Only Host Discovery)"""
         )
         scan_group.add_argument(
             "--service-detection-mode",
@@ -289,6 +287,19 @@ class PhantomCLI:
             dest="debug",
             help="Enable debug mode (show detailed error messages and stack traces)"
         )
+        misc_group.add_argument(
+            "--open-only",
+            action="store_true",
+            dest="open_only",
+            default=True,
+            help="Only show open ports in results (default: enabled)"
+        )
+        misc_group.add_argument(
+            "--all-ports",
+            action="store_false",
+            dest="open_only",
+            help="Show all port states (closed, filtered, open) in results"
+        )
     
     def validate_args(self, args):
         """Validate parsed arguments"""
@@ -386,81 +397,111 @@ class PhantomCLI:
         )
         
         # Create and return ScanContext
-        return ScanContext(
+        context = ScanContext(
             targets=target_config,
             ports=port_config,
             pipeline=pipeline_config,
             performance=performance_config,
             output=output_config,
             verbose=args.verbose,
-            debug=args.debug
+            debug=args.debug,
+            open_only=getattr(args, 'open_only', True)  # Default to True
         )
+        
+        return context
 
     def print_examples(self):
         """Show detailed usage examples"""
         examples = f"""
-{Fore.CYAN}{'='*70}{Style.RESET_ALL}
-{Fore.CYAN}PHANTOMSWEEP USAGE EXAMPLES{Style.RESET_ALL}
-{Fore.CYAN}{'='*70}{Style.RESET_ALL}
+            {Fore.CYAN}{'='*70}{Style.RESET_ALL}
+            {Fore.CYAN}PHANTOMSWEEP USAGE EXAMPLES{Style.RESET_ALL}
+            {Fore.CYAN}{'='*70}{Style.RESET_ALL}
 
-{Fore.YELLOW}1. Default scan (uses default options: top_100 ports, icmp ping, connect scan){Style.RESET_ALL}
-   python phantom.py 192.168.1.1
+            {Fore.YELLOW}1. Default scan (uses default options: top_100 ports, icmp ping, connect scan){Style.RESET_ALL}
+            python phantom.py 192.168.1.1
 
-{Fore.YELLOW}2. Custom network scan with specific ports and output format{Style.RESET_ALL}
-   python phantom.py 192.168.1.0/24 --port 80,443 --output json --output-file results.json
+            {Fore.YELLOW}2. Custom network scan with specific ports and output format{Style.RESET_ALL}
+            python phantom.py 192.168.1.0/24 --port 80,443 --output json --output-file results.json
 
-{Fore.YELLOW}3. Stealth scan with AI evasion{Style.RESET_ALL}
-   python phantom.py 192.168.1.0/24 --ping-tech none --scan-tech stealth --rate stealthy --evasion-mode randomize
+            {Fore.YELLOW}3. Stealth scan with AI evasion{Style.RESET_ALL}
+            python phantom.py 192.168.1.0/24 --ping-tech none --scan-tech stealth --rate stealthy --evasion-mode randomize
 
-{Fore.YELLOW}4. Full scan with all scripts and multiple output formats{Style.RESET_ALL}
-   python phantom.py 192.168.1.1 --port all --script all --output json,xml
+            {Fore.YELLOW}4. Full scan with all scripts and multiple output formats{Style.RESET_ALL}
+            python phantom.py 192.168.1.1 --port all --script all --output json,xml
 
-{Fore.YELLOW}5. UDP scan on specific ports{Style.RESET_ALL}
-   python phantom.py 192.168.1.1 --scan-tech udp --port 53,161
+            {Fore.YELLOW}5. UDP scan on specific ports{Style.RESET_ALL}
+            python phantom.py 192.168.1.1 --scan-tech udp --port 53,161
 
-{Fore.YELLOW}6. Scan with exclusions{Style.RESET_ALL}
-   python phantom.py 192.168.1.0/24 --exclude-host 192.168.1.1 192.168.1.100 --port top_1000 --exclude-port 80,443
+            {Fore.YELLOW}6. Scan with exclusions{Style.RESET_ALL}
+            python phantom.py 192.168.1.0/24 --exclude-host 192.168.1.1 192.168.1.100 --port top_1000 --exclude-port 80,443
 
-{Fore.YELLOW}7. Scan from file with service detection{Style.RESET_ALL}
-   python phantom.py --host-list targets.txt --port top_100 --service-detection-mode normal
+            {Fore.YELLOW}7. Scan from file with service detection{Style.RESET_ALL}
+            python phantom.py --host-list targets.txt --port top_100 --service-detection-mode normal
 
-{Fore.YELLOW}8. IP range scan{Style.RESET_ALL}
-   python phantom.py 192.168.1.1-192.168.1.100 --port 22,80,443
+            {Fore.YELLOW}8. IP range scan{Style.RESET_ALL}
+            python phantom.py 192.168.1.1-192.168.1.100 --port 22,80,443
 
-{Fore.YELLOW}9. Multiple targets with OS fingerprinting{Style.RESET_ALL}
-   python phantom.py 192.168.1.1 192.168.1.2 192.168.1.3 --os-fingerprinting-mode ai
+            {Fore.YELLOW}9. Multiple targets with OS fingerprinting{Style.RESET_ALL}
+            python phantom.py 192.168.1.1 192.168.1.2 192.168.1.3 --os-fingerprinting-mode ai
 
-{Fore.YELLOW}10. High-speed scan{Style.RESET_ALL}
-    python phantom.py 192.168.1.0/24 --rate insane --thread 100 --timeout 1.0
+            {Fore.YELLOW}10. High-speed scan{Style.RESET_ALL}
+                python phantom.py 192.168.1.0/24 --rate insane --thread 100 --timeout 1.0
 
-{Fore.CYAN}{'='*70}{Style.RESET_ALL}
-"""
+            {Fore.CYAN}{'='*70}{Style.RESET_ALL}
+        """
         print(examples)
 
     def display_config(self, context):
-        """Display the scan configuration"""
+        """
+        Display the scan configuration in a way that matches the new ScanContext and config structure.
+        """
         if context.verbose or context.debug:
             print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
             print(f"{Fore.CYAN}SCAN CONFIGURATION{Style.RESET_ALL}")
             print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
+
+            # Targets
+            targets = context.targets.host
+            if context.targets.host_list:
+                targets += [f"[from file: {context.targets.host_list}]"]
+            print(f"{Fore.YELLOW}Targets:{Style.RESET_ALL} {', '.join(targets) if targets else 'None'}")
             
-            print(f"{Fore.YELLOW}Targets:{Style.RESET_ALL} {', '.join(context.targets) or 'None'}")
-            print(f"{Fore.YELLOW}Scan Type:{Style.RESET_ALL} {context.scan_type.upper()}")
-            print(f"{Fore.YELLOW}Ports:{Style.RESET_ALL} {self._get_port_description(context)}")
-            print(f"{Fore.YELLOW}Service Detection:{Style.RESET_ALL} {'Enabled' if context.service_version else 'Disabled'}")
-            print(f"{Fore.YELLOW}OS Detection:{Style.RESET_ALL} {'Enabled' if context.os_detection else 'Disabled'}")
-            print(f"{Fore.YELLOW}Timing Template:{Style.RESET_ALL} T{context.timing}")
-            print(f"{Fore.YELLOW}Threads:{Style.RESET_ALL} {context.threads}")
-            print(f"{Fore.YELLOW}Timeout:{Style.RESET_ALL} {context.timeout} seconds")
-            print(f"{Fore.YELLOW}Output Files:{Style.RESET_ALL}")
-            print(f"  Normal: {context.output_normal or 'None'}")
-            print(f"  XML: {context.output_xml or 'None'}")
-            print(f"  JSON: {context.output_json or 'None'}")
-            print(f"  HTML: {context.output_html or 'None'}")
-            print(f"{Fore.YELLOW}Show Open Only:{Style.RESET_ALL} {'Enabled' if context.show_open_only else 'Disabled'}")
+            # Excluded hosts
+            exclude_hosts = context.targets.exclude_host
+            print(f"{Fore.YELLOW}Excluded Hosts:{Style.RESET_ALL} {', '.join(exclude_hosts) if exclude_hosts else 'None'}")
+            
+            # Ports
+            port_desc = context.ports.port if context.ports.port else "top_100"
+            if context.ports.port_list:
+                port_desc += f" [from file: {context.ports.port_list}]"
+            print(f"{Fore.YELLOW}Ports:{Style.RESET_ALL} {port_desc}")
+            # Excluded ports
+            exclude_ports = context.ports.exclude_port
+            print(f"{Fore.YELLOW}Excluded Ports:{Style.RESET_ALL} {', '.join(exclude_ports) if exclude_ports else 'None'}")
+
+            # Pipeline
+            print(f"{Fore.YELLOW}Ping Technique:{Style.RESET_ALL} {context.pipeline.ping_tech}")
+            print(f"{Fore.YELLOW}Scan Technique:{Style.RESET_ALL} {context.pipeline.scan_tech}")
+            # Service detection
+            print(f"{Fore.YELLOW}Service Detection Mode:{Style.RESET_ALL} {context.pipeline.service_detection_mode}")
+            # OS fingerprinting
+            print(f"{Fore.YELLOW}OS Detection Mode:{Style.RESET_ALL} {context.pipeline.os_fingerprinting_mode}")
+            # Scripts
+            print(f"{Fore.YELLOW}Scripts:{Style.RESET_ALL} {', '.join(context.pipeline.script) if context.pipeline.script else 'None'}")
+
+            # Performance
+            print(f"{Fore.YELLOW}Performance/Rate:{Style.RESET_ALL} {context.performance.rate}")
+            print(f"{Fore.YELLOW}Threads:{Style.RESET_ALL} {context.performance.thread}")
+            print(f"{Fore.YELLOW}Timeout:{Style.RESET_ALL} {context.performance.timeout} s")
+            print(f"{Fore.YELLOW}Evasion Mode:{Style.RESET_ALL} {', '.join(context.performance.evasion_mode) if context.performance.evasion_mode else 'None'}")
+
+            # Output
+            print(f"{Fore.YELLOW}Output Format:{Style.RESET_ALL} {context.output.output_format}")
+            print(f"{Fore.YELLOW}Output File:{Style.RESET_ALL} {context.output.output_filename or 'None'}")
+
+            # Global flags
             print(f"{Fore.YELLOW}Verbose:{Style.RESET_ALL} {'Enabled' if context.verbose else 'Disabled'}")
             print(f"{Fore.YELLOW}Debug:{Style.RESET_ALL} {'Enabled' if context.debug else 'Disabled'}")
-            print(f"{Fore.YELLOW}Excluded Targets:{Style.RESET_ALL} {', '.join(context.exclude) if context.exclude else 'None'}")
             print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
 
     def run_scan(self, context: ScanContext) -> ScanResult:
@@ -490,6 +531,28 @@ class PhantomCLI:
         print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}SCAN RESULTS{Style.RESET_ALL}\n")
         
+        # Print scan summary information
+        if result.scan_start_time:
+            from datetime import datetime
+            start_dt = datetime.fromisoformat(result.scan_start_time)
+            print(f"{Fore.CYAN}Scan started:{Style.RESET_ALL} {start_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+        if result.scan_end_time:
+            from datetime import datetime
+            end_dt = datetime.fromisoformat(result.scan_end_time)
+            print(f"{Fore.CYAN}Scan ended:{Style.RESET_ALL} {end_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+        if result.scan_duration is not None:
+            duration = result.scan_duration
+            hours = int(duration // 3600)
+            minutes = int((duration % 3600) // 60)
+            seconds = duration % 60
+            if hours > 0:
+                print(f"{Fore.CYAN}Scan duration:{Style.RESET_ALL} {hours}h {minutes}m {seconds:.2f}s")
+            elif minutes > 0:
+                print(f"{Fore.CYAN}Scan duration:{Style.RESET_ALL} {minutes}m {seconds:.2f}s")
+            else:
+                print(f"{Fore.CYAN}Scan duration:{Style.RESET_ALL} {seconds:.2f}s")
+        print()
+        
         if not result.hosts:
             print(f"{Fore.YELLOW}No targets found.{Style.RESET_ALL}")
             return
@@ -513,21 +576,36 @@ class PhantomCLI:
                 print(f"  OS: {host_info.os}" + 
                       (f" (accuracy: {host_info.os_accuracy}%)" if host_info.os_accuracy else ""))
             
+            # Check if we should filter to open ports only
+            open_only = context.open_only
+            
             if host_info.tcp_ports:
-                print(f"  TCP Ports:")
-                for port in sorted(host_info.tcp_ports.keys()):
-                    port_info = host_info.tcp_ports[port]
-                    service_str = f" ({port_info.service})" if port_info.service else ""
-                    version_str = f" {port_info.version}" if port_info.version else ""
-                    print(f"    {port}: {port_info.state}{service_str}{version_str}")
+                tcp_ports_to_show = host_info.tcp_ports
+                if open_only:
+                    tcp_ports_to_show = {p: info for p, info in host_info.tcp_ports.items() 
+                                       if info.state == "open"}
+                
+                if tcp_ports_to_show:
+                    print(f"  TCP Ports:")
+                    for port in sorted(tcp_ports_to_show.keys()):
+                        port_info = tcp_ports_to_show[port]
+                        service_str = f" ({port_info.service})" if port_info.service else ""
+                        version_str = f" {port_info.version}" if port_info.version else ""
+                        print(f"    {port}: {port_info.state}{service_str}{version_str}")
             
             if host_info.udp_ports:
-                print(f"  UDP Ports:")
-                for port in sorted(host_info.udp_ports.keys()):
-                    port_info = host_info.udp_ports[port]
-                    service_str = f" ({port_info.service})" if port_info.service else ""
-                    version_str = f" {port_info.version}" if port_info.version else ""
-                    print(f"    {port}: {port_info.state}{service_str}{version_str}")
+                udp_ports_to_show = host_info.udp_ports
+                if open_only:
+                    udp_ports_to_show = {p: info for p, info in host_info.udp_ports.items() 
+                                       if info.state == "open"}
+                
+                if udp_ports_to_show:
+                    print(f"  UDP Ports:")
+                    for port in sorted(udp_ports_to_show.keys()):
+                        port_info = udp_ports_to_show[port]
+                        service_str = f" ({port_info.service})" if port_info.service else ""
+                        version_str = f" {port_info.version}" if port_info.version else ""
+                        print(f"    {port}: {port_info.state}{service_str}{version_str}")
             
             if host_info.scripts:
                 print(f"  Scripts:")
@@ -555,15 +633,16 @@ class PhantomCLI:
         
         # Display configuration
         if context.verbose or context.debug:
-            print(f"\n{Fore.CYAN}Configuration:{Style.RESET_ALL}")
-            print(f"  Targets: {len(context.targets.host)} target(s)")
-            print(f"  Ping Tech: {context.pipeline.ping_tech}")
-            print(f"  Scan Tech: {context.pipeline.scan_tech}")
-            print(f"  Ports: {context.ports.port}")
-            print(f"  Rate: {context.performance.rate}")
-            print(f"  Threads: {context.performance.thread}")
-            print()
-        
+            # print(f"\n{Fore.CYAN}Configuration:{Style.RESET_ALL}")
+            # print(f"  Targets: {len(context.targets.host)} target(s)")
+            # print(f"  Ping Tech: {context.pipeline.ping_tech}")
+            # print(f"  Scan Tech: {context.pipeline.scan_tech}")
+            # print(f"  Ports: {context.ports.port}")
+            # print(f"  Rate: {context.performance.rate}")
+            # print(f"  Threads: {context.performance.thread}")
+            # print()
+            self.display_config(context)
+            
         # Run scan
         try:
             result = self.run_scan(context)
@@ -579,8 +658,6 @@ class PhantomCLI:
             return 1
         
         return 0
-
-
 
 
 def main():

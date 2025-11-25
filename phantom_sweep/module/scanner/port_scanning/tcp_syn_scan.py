@@ -1,11 +1,12 @@
 """
-TCP SYN Port Scanner
+TCP SYN Port Scanner - Masscan-style architecture
 """
 import asyncio
 import socket
 import time
+import threading
 from typing import Dict, Set, Tuple
-from scapy.all import IP, TCP, sr, send, conf
+from scapy.all import IP, TCP, send, sniff, conf, get_if_list
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.core.parsers import parse_port_spec, parse_exclude_ports
@@ -16,8 +17,10 @@ conf.verb = 0
 
 class TCPSynScanner(ScannerBase):
     """
-    TCP SYN Port Scanner (Stealth Scan).
-    Uses async architecture with sender and receiver threads for high-speed scanning.
+    TCP SYN Port Scanner (Stealth Scan) - Masscan-style architecture.
+    Uses raw socket with separate sender and receiver threads for high-speed scanning.
+    - Sender: Fire-and-forget packet sending (no waiting for responses)
+    - Receiver: Continuous sniffing with BPF filter for responses
     """
     
     def name(self) -> str:
@@ -31,7 +34,6 @@ class TCPSynScanner(ScannerBase):
         Perform TCP SYN port scanning using async sender/receiver architecture.
         """
         # Get hosts to scan (only up hosts from discovery phase)
-        # If no hosts discovered or all down, check if we should scan anyway
         hosts_to_scan = [host for host, info in result.hosts.items() 
                         if info.state == "up"]
         
@@ -63,187 +65,255 @@ class TCPSynScanner(ScannerBase):
         """
         Async scan with sender and receiver tasks.
         """
-        # Shared data structures
-        sent_packets: Dict[Tuple[str, int], float] = {}  # (host, port) -> timestamp
-        port_states: Dict[Tuple[str, int], str] = {}  # (host, port) -> state
+        # Resolve all hostnames to IPs
+        host_to_ip: Dict[str, str] = {}
+        ip_to_host: Dict[str, str] = {}
+        target_ips = set()
         
-        # Create tasks
-        sender_task = asyncio.create_task(
-            self._sender(context, hosts, ports, sent_packets)
+        for host in hosts:
+            try:
+                ip = socket.gethostbyname(host)
+                host_to_ip[host] = ip
+                ip_to_host[ip] = host
+                target_ips.add(ip)
+            except socket.gaierror:
+                if context.verbose:
+                    print(f"  [!] Cannot resolve {host}")
+                continue
+        
+        if not target_ips:
+            return
+        
+        # Shared data structures
+        sent_packets: Dict[Tuple[str, int], float] = {}  # (ip, port) -> timestamp
+        port_states: Dict[Tuple[str, int], str] = {}  # (ip, port) -> state
+        received_responses: Set[Tuple[str, int]] = set()  # Track processed responses
+        sniff_stop_event = threading.Event()
+        
+        # Build BPF filter for all target IPs
+        # Format: "tcp and (src host 192.168.1.1 or src host 192.168.1.2 ...)"
+        bpf_filter = f"tcp and ({' or '.join([f'src host {ip}' for ip in target_ips])})"
+        
+        # Create receiver thread (sniffing)
+        receiver_thread = threading.Thread(
+            target=self._receiver_sniff,
+            args=(context, target_ips, ports, port_states, received_responses, 
+                  result, ip_to_host, bpf_filter, sniff_stop_event),
+            daemon=True
         )
-        receiver_task = asyncio.create_task(
-            self._receiver(context, hosts, ports, sent_packets, port_states, result)
+        receiver_thread.start()
+        
+        # Give receiver a moment to start
+        await asyncio.sleep(0.1)
+        
+        # Create sender task (fire-and-forget)
+        sender_task = asyncio.create_task(
+            self._sender(context, list(target_ips), ports, sent_packets)
         )
         
         # Wait for sender to finish
         await sender_task
         
-        # Wait for responses
-        await asyncio.sleep(context.performance.timeout * 2)
-        receiver_task.cancel()
+        if context.verbose:
+            print(f"  [*] Finished sending {len(sent_packets)} packets, waiting for responses...")
         
-        try:
-            await receiver_task
-        except asyncio.CancelledError:
-            pass
+        # Wait for responses with adaptive timeout
+        # Check periodically if we've received all responses or timeout
+        max_wait_time = min(context.performance.timeout * 2, 10.0)  # Cap at 10 seconds max
+        check_interval = 0.5  # Check every 0.5 seconds
+        elapsed = 0.0
+        last_response_count = len(received_responses)
+        no_response_count = 0
+        
+        while elapsed < max_wait_time:
+            await asyncio.sleep(check_interval)
+            elapsed += check_interval
+            
+            # Check if we got new responses
+            current_response_count = len(received_responses)
+            if current_response_count > last_response_count:
+                last_response_count = current_response_count
+                no_response_count = 0
+            else:
+                no_response_count += 1
+                # If no new responses for 2 seconds, we're probably done
+                if no_response_count * check_interval >= 2.0:
+                    if context.verbose:
+                        print(f"  [*] No new responses for 2s, finishing early...")
+                    break
+        
+        # Stop sniffing
+        sniff_stop_event.set()
+        receiver_thread.join(timeout=2)
         
         # Mark filtered ports (no response received)
-        for host in hosts:
+        for ip in target_ips:
+            host = ip_to_host.get(ip, ip)
             host_info = result.add_host(host)
             for port in ports:
-                key = (host, port)
+                key = (ip, port)
                 if key not in port_states:
                     # No response = filtered or open|filtered
                     result.add_port(host, port, "filtered", "tcp")
     
-    async def _sender(self, context: ScanContext, hosts: list, ports: list,
+    async def _sender(self, context: ScanContext, ips: list, ports: list,
                      sent_packets: Dict[Tuple[str, int], float]):
         """
-        Sender thread: Send TCP SYN packets to all host:port combinations quickly.
+        Sender thread: Fire-and-forget TCP SYN packets to all host:port combinations.
+        Uses send() for maximum speed - no waiting for responses.
         """
         rate_limit = self._get_rate_limit(context.performance.rate)
-        total_packets = len(hosts) * len(ports)
+        total_packets = len(ips) * len(ports)
         sent_count = 0
         
-        for host in hosts:
+        # Apply randomization if evasion mode includes it
+        if context.performance.evasion_mode and "randomize" in context.performance.evasion_mode:
+            import random
+            # Create all combinations and shuffle
+            combinations = [(ip, port) for ip in ips for port in ports]
+            random.shuffle(combinations)
+        else:
+            combinations = [(ip, port) for ip in ips for port in ports]
+        
+        for ip, port in combinations:
             try:
-                ip = socket.gethostbyname(host)
+                # Create TCP SYN packet
+                packet = IP(dst=ip) / TCP(dport=port, flags="S")
                 
-                for port in ports:
-                    # Create TCP SYN packet
-                    packet = IP(dst=ip) / TCP(dport=port, flags="S")
-                    send(packet, verbose=0)
+                # Fire-and-forget: send without waiting
+                send(packet, verbose=0)
+                
+                sent_packets[(ip, port)] = time.time()
+                sent_count += 1
+                
+                if context.verbose and sent_count % 1000 == 0:
+                    print(f"  [*] Sent {sent_count}/{total_packets} packets...")
+                
+                # Rate limiting
+                if rate_limit > 0:
+                    await asyncio.sleep(1.0 / rate_limit)
                     
-                    sent_packets[(ip, port)] = time.time()
-                    sent_count += 1
-                    
-                    if context.verbose and sent_count % 100 == 0:
-                        print(f"  [*] Sent {sent_count}/{total_packets} packets...")
-                    
-                    # Rate limiting
-                    if rate_limit > 0:
-                        await asyncio.sleep(1.0 / rate_limit)
-                        
-            except (socket.gaierror, Exception) as e:
+            except Exception as e:
                 if context.debug:
-                    print(f"  [DEBUG-TCP-SYN] Error sending to {host}: {e}")
+                    print(f"  [DEBUG-TCP-SYN] Error sending to {ip}:{port}: {e}")
                 continue
         
         if context.verbose:
             print(f"  [*] Finished sending {sent_count} packets")
     
-    async def _receiver(self, context: ScanContext, hosts: list, ports: list,
-                       sent_packets: Dict[Tuple[str, int], float],
+    def _receiver_sniff(self, context: ScanContext, target_ips: Set[str], ports: list,
                        port_states: Dict[Tuple[str, int], str],
-                       result: ScanResult):
+                       received_responses: Set[Tuple[str, int]],
+                       result: ScanResult, ip_to_host: Dict[str, str],
+                       bpf_filter: str, stop_event: threading.Event):
         """
-        Receiver thread: Listen for TCP SYN/ACK, RST, or ICMP responses.
+        Receiver thread: Continuously sniff for TCP responses using BPF filter.
+        Processes SYN/ACK (open) and RST (closed) responses.
         """
-        timeout = context.performance.timeout * 2
-        start_time = time.time()
-        processed = set()
-        
-        while time.time() - start_time < timeout:
+        def process_packet(packet):
+            """Process a received packet"""
             try:
-                await asyncio.sleep(0.1)
+                if not packet.haslayer(TCP) or not packet.haslayer(IP):
+                    return
                 
-                # Process pending packets in batch
-                if sent_packets:
-                    # Get a batch of packets to check
-                    keys_to_check = [k for k in sent_packets.keys() 
-                                   if k not in processed][:50]  # Larger batch
+                tcp = packet.getlayer(TCP)
+                ip_layer = packet.getlayer(IP)
+                src_ip = ip_layer.src
+                dst_port = tcp.dport  # Destination port in response = our target port
+                
+                # Check if this is a response to one of our targets
+                if src_ip not in target_ips:
+                    return
+                
+                # Check if we're scanning this port
+                if dst_port not in ports:
+                    return
+                
+                key = (src_ip, dst_port)
+                
+                # Skip if already processed
+                if key in received_responses:
+                    return
+                
+                # SYN/ACK (0x12) = port is open
+                if tcp.flags == 0x12:
+                    port_states[key] = "open"
+                    received_responses.add(key)
+                    host = ip_to_host.get(src_ip, src_ip)
+                    result.add_port(host, dst_port, "open", "tcp")
                     
-                    if keys_to_check:
-                        try:
-                            # Create batch of packets
-                            packets = [IP(dst=host_ip) / TCP(dport=port, flags="S") 
-                                     for host_ip, port in keys_to_check]
-                            
-                            # Use asyncio.to_thread for non-blocking sr()
-                            ans, unans = await asyncio.to_thread(
-                                sr, packets, timeout=0.3, verbose=0, retry=0
-                            )
-                            
-                            for sent, received in ans:
-                                if received.haslayer(TCP):
-                                    tcp = received.getlayer(TCP)
-                                    src_ip = received[IP].src
-                                    port = sent[TCP].dport
-                                    
-                                    # SYN/ACK (0x12) = open
-                                    if tcp.flags == 0x12:
-                                        port_states[(src_ip, port)] = "open"
-                                        result.add_port(src_ip, port, "open", "tcp")
-                                        
-                                        # Send RST to close connection
-                                        try:
-                                            rst_packet = IP(dst=src_ip) / TCP(dport=port, flags="R")
-                                            send(rst_packet, verbose=0)
-                                        except:
-                                            pass
-                                    
-                                    # RST (0x14) = closed
-                                    elif tcp.flags == 0x14:
-                                        port_states[(src_ip, port)] = "closed"
-                                        result.add_port(src_ip, port, "closed", "tcp")
-                                    
-                                    processed.add((src_ip, port))
-                                    if (src_ip, port) in sent_packets:
-                                        del sent_packets[(src_ip, port)]
-                        except Exception as e:
-                            if context.debug:
-                                print(f"  [DEBUG-TCP-SYN] Batch processing error: {e}")
-                            continue
+                    if context.verbose:
+                        print(f"  [+] {host}:{dst_port}/tcp open")
+                    
+                    # Send RST to close connection (optional, but good practice)
+                    try:
+                        rst_packet = IP(dst=src_ip) / TCP(dport=dst_port, flags="R")
+                        send(rst_packet, verbose=0)
+                    except:
+                        pass
+                
+                # RST (0x14) = port is closed
+                elif tcp.flags == 0x14:
+                    port_states[key] = "closed"
+                    received_responses.add(key)
+                    host = ip_to_host.get(src_ip, src_ip)
+                    result.add_port(host, dst_port, "closed", "tcp")
+                    
+                    if context.debug:
+                        print(f"  [DEBUG] {host}:{dst_port}/tcp closed")
+                
             except Exception as e:
                 if context.debug:
-                    print(f"  [DEBUG-TCP-SYN] Error in receiver: {e}")
-                continue
+                    print(f"  [DEBUG-TCP-SYN] Error processing packet: {e}")
         
-        # Final batch check for remaining packets
+        # Start sniffing with BPF filter
         try:
-            remaining = [(h, p) for h, p in sent_packets.keys() 
-                        if (h, p) not in processed]
+            # Get network interface (use default if available)
+            iface = None
+            try:
+                ifaces = get_if_list()
+                if ifaces:
+                    # Prefer eth0, eth1, or first available
+                    for preferred in ['eth0', 'eth1', 'wlan0', 'enp0s3']:
+                        if preferred in ifaces:
+                            iface = preferred
+                            break
+                    if not iface:
+                        iface = ifaces[0]
+            except:
+                pass
             
-            if remaining:
-                packets = []
-                host_port_map = {}
-                for host_ip, port in remaining[:100]:  # Limit batch size
-                    try:
-                        packet = IP(dst=host_ip) / TCP(dport=port, flags="S")
-                        packets.append(packet)
-                        host_port_map[len(packets) - 1] = (host_ip, port)
-                    except:
-                        continue
-                
-                if packets:
-                    ans, unans = await asyncio.to_thread(
-                        sr, packets, timeout=context.performance.timeout,
-                        verbose=0, retry=1
+            # Sniff until stop event is set
+            timeout = context.performance.timeout * 2
+            start_time = time.time()
+            
+            while not stop_event.is_set() and (time.time() - start_time) < timeout:
+                try:
+                    # Sniff with short timeout to check stop_event periodically
+                    sniff(
+                        filter=bpf_filter,
+                        prn=process_packet,
+                        timeout=0.5,
+                        iface=iface,
+                        stop_filter=lambda x: stop_event.is_set(),
+                        store=False  # Don't store packets, just process them
                     )
+                except Exception as e:
+                    if context.debug:
+                        print(f"  [DEBUG-TCP-SYN] Sniff error: {e}")
+                    # Continue sniffing
+                    time.sleep(0.1)
                     
-                    for sent, received in ans:
-                        idx = ans.index((sent, received))
-                        if idx in host_port_map:
-                            host_ip, port = host_port_map[idx]
-                            
-                            if received.haslayer(TCP):
-                                tcp = received.getlayer(TCP)
-                                src_ip = received[IP].src
-                                
-                                if tcp.flags == 0x12:  # SYN/ACK
-                                    result.add_port(src_ip, port, "open", "tcp")
-                                elif tcp.flags == 0x14:  # RST
-                                    result.add_port(src_ip, port, "closed", "tcp")
-        except Exception:
-            pass
+        except Exception as e:
+            if context.debug:
+                print(f"  [DEBUG-TCP-SYN] Receiver error: {e}")
     
     def _get_rate_limit(self, rate: str) -> float:
         """Convert rate string to packets per second."""
         rate_map = {
-            "stealthy": 50,
-            "balanced": 500,
-            "fast": 5000,
-            "insane": 50000
+            "stealthy": 50,      # 50 pps
+            "balanced": 500,     # 500 pps
+            "fast": 5000,        # 5000 pps
+            "insane": 50000      # 50000 pps (very fast)
         }
         return rate_map.get(rate, 500)
-

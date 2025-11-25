@@ -45,8 +45,9 @@ class Manager:
             if context.pipeline.ping_tech != "none":
                 self._run_host_discovery(context)
             
-            # Step 2: Port Scanning
-            self._run_port_scanning(context)
+            # Step 2: Port Scanning (if enabled)
+            if context.pipeline.scan_tech != "none":
+                self._run_port_scanning(context)
             
             # Step 3: Service Detection (if enabled)
             if context.pipeline.service_detection_mode != "off":
@@ -270,7 +271,7 @@ class Manager:
                 else:
                     filename = f"{base_filename}.{fmt}"
             else:
-                filename = None  # Print to console
+                filename = None  # Print to console (reporter will handle this)
             
             # Create and run reporter
             reporter = reporter_class()

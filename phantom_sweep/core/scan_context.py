@@ -25,7 +25,7 @@ class PortConfig:
 class PipelineConfig:
     """Scan pipeline configuration (from --ping-tech, --scan-tech, --service-detection-mode, --os-fingerprinting-mode, --script)"""
     ping_tech: str = "icmp"  # icmp, tcp, arp, none
-    scan_tech: str = "connect"  # connect, stealth, udp
+    scan_tech: str = "connect"  # connect, stealth, udp, none
     service_detection_mode: str = "ai"  # ai, normal, off
     os_fingerprinting_mode: str = "ai"  # ai, normal, off
     script: List[str] = field(default_factory=list) # find in scripting folder
@@ -62,6 +62,7 @@ class ScanContext:
     # Global flags
     verbose: bool = False
     debug: bool = False
+    open_only: bool = True  # Only show open ports by default
     
     # Intermediate data storage (for temporary data during scan execution, NOT final results)
     # Final results should be stored in ScanResult, not here
