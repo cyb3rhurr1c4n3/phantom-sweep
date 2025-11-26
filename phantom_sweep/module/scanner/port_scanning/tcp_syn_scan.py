@@ -70,20 +70,24 @@ class TCPSynScanner(ScannerBase, AIScannerEnhancer):
         # === FIX: Check AI evasion properly ===
         ai_mode = False
         
-        # Check if evasion_mode contains "True" string (from CLI)
-        if context.performance.evasion_mode and 'True' in context.performance.evasion_mode:
-            if AI_AVAILABLE:
-                # Try to enable AI
-                ai_mode = self.enable_ai(verbose=context.verbose or context.debug)
-                if ai_mode and (context.verbose or context.debug):
-                    print("[AI] ✓ Evasion mode: ENABLED")
-            else:
-                if context.verbose or context.debug:
-                    print("[AI] ✗ AI not available (missing dependencies)")
-        
-        if context.verbose or context.debug:
-            mode_str = "AI-Enhanced " if ai_mode else ""
-            print(f"[*] Starting {mode_str}TCP SYN scan on {len(hosts_to_scan)} hosts, {len(ports)} ports...")
+        if context.performance.evasion_mode:
+        # Check if 'ai' is in the evasion_mode list
+            if isinstance(context.performance.evasion_mode, list):
+                if 'ai' in context.performance.evasion_mode:
+                    if AI_AVAILABLE:
+                        ai_mode = self.enable_ai(verbose=context.verbose or context.debug)
+                        if ai_mode:
+                            print("[AI] ✓ Evasion mode: ENABLED")
+                    else:
+                        print("[AI] ✗ AI not available")
+            elif context.performance.evasion_mode == 'ai':
+                if AI_AVAILABLE:
+                    ai_mode = self.enable_ai(verbose=context.verbose or context.debug)
+    
+        # Add debug output
+        if context.debug:
+            print(f"[DEBUG] AI Mode: {ai_mode}")
+            print(f"[DEBUG] Evasion mode value: {context.performance.evasion_mode}")
         
         # Run async scan
         asyncio.run(self._async_scan(context, result, hosts_to_scan, ports, ai_mode))
