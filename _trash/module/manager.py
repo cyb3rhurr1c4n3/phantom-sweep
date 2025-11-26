@@ -6,114 +6,26 @@ from typing import Optional
 import os
 
 from phantom_sweep.core.scan_context import ScanContext
-from phantom_sweep.core.scan_result import ScanResult
+from phantom_sweep.core.scan_result import ScanResult, HostInfo, PortInfo
+from phantom_sweep.module.scanner import HOST_DISCOVERY_SCANNERS, PORT_SCANNING_SCANNERS
 from phantom_sweep.module.analyzer import SERVICE_DETECTION_ANALYZERS, OS_FINGERPRINTING_ANALYZERS
+from phantom_sweep.module.scripting import SCRIPTS
 from phantom_sweep.module.reporter import REPORTERS
 
-import importlib
-import pkgutil
-import inspect
-from phantom_sweep.module._base import ScannerBase, ScriptingBase
-import phantom_sweep.module.scanner.host_discovery as host_discovery_module
-import phantom_sweep.module.scanner.port_scanning as port_scanning_module
-import phantom_sweep.module.scripting as scripting_module
 
 class Manager:
-
+    """
+    Manages the scan pipeline execution.
+    Coordinates between different modules (scanner, analyzer, reporter, scripting).
+    - scanner: module for Host discovery and Port Scanning
+    - analyzer: module for Service & Version Detection and OS Fingerprinting
+    - reporter: module for output format (only console, text file, csv file, nmap-xml file, json file)  
+    - scripting: module for exploit or other script
+    """
+    
     def __init__(self):
-        self.host_discovery_plugins = {}
-        self.port_scan_plugins = {}
-        self.scripting_plugins = {}
         self.result: Optional[ScanResult] = None
-        print("Initializing Manager...")
-        
     
-    # ================= Plugin Loading ================= #
-
-    def load_plugins(self):
-        """Quét thư mục module/scanner, module/scripting và nạp tất cả các class kế thừa ScannerBase và ScriptingBase"""
-        print("Loading plugins...")
-        # Load host discovery scanners
-        for _, module_name, _ in pkgutil.iter_modules(host_discovery_module.__path__):
-            module = importlib.import_module(f"phantom_sweep.module.scanner.host_discovery.{module_name}")
-            for name, obj in inspect.getmembers(module, inspect.isclass):
-                if issubclass(obj, ScannerBase) and obj is not ScannerBase:
-                    self.host_discovery_plugins[name] = obj
-        
-        # Load port scanning scanners
-        for _, module_name, _ in pkgutil.iter_modules(port_scanning_module.__path__):
-            module = importlib.import_module(f"phantom_sweep.module.scanner.port_scanning.{module_name}")
-            for name, obj in inspect.getmembers(module, inspect.isclass):
-                if issubclass(obj, ScannerBase) and obj is not ScannerBase:
-                    self.port_scan_plugins[name] = obj
-        
-        # Load scripting modules
-        for _, module_name, _ in pkgutil.iter_modules(scripting_module.__path__):
-            module = importlib.import_module(f"phantom_sweep.module.scripting.{module_name}")
-            for name, obj in inspect.getmembers(module, inspect.isclass):
-                if issubclass(obj, ScriptingBase) and obj is not ScriptingBase:
-                    self.scripting_plugins[name] = obj
-        print("Loaded plugins successfully.")
-
-    def get_discovery_choices(self):
-        """Get available host discovery choices using plugin name property"""
-        choices = []
-        if getattr(self, "host_discovery_plugins", None):
-            for plugin_class in self.host_discovery_plugins.values():
-                instance = plugin_class()
-                choices.append(instance.name)
-        choices = sorted(set(choices))  # Remove duplicates and sort
-        if "none" not in choices:
-            choices.append("none")
-        return choices
-
-    def get_scanning_choices(self):
-        """Get available port scanning choices using plugin name property"""
-        choices = []
-        if getattr(self, "port_scan_plugins", None):
-            for plugin_class in self.port_scan_plugins.values():
-                instance = plugin_class()
-                choices.append(instance.name)
-        choices = sorted(set(choices))  # Remove duplicates and sort
-        if "none" not in choices:
-            choices.append("none")
-        return choices
-    
-    def generate_help_text(self, plugin_dict):
-        text = ""
-        for cls in plugin_dict.values():
-            instance = cls()
-            text += f"\n            - {instance.name}: {instance.description}"
-        return text
-    
-    def get_discovery_plugin_by_name(self, plugin_name):
-        """Get host discovery plugin class by its name property"""
-        if plugin_name == "none":
-            return None
-        
-        for plugin_class in self.host_discovery_plugins.values():
-            instance = plugin_class()
-            if instance.name == plugin_name:
-                return plugin_class
-        
-        return None
-    
-    def get_scanning_plugin_by_name(self, plugin_name):
-        """Get port scanning plugin class by its name property"""
-        if plugin_name == "none":
-            return None
-        
-        for plugin_class in self.port_scan_plugins.values():
-            instance = plugin_class()
-            if instance.name == plugin_name:
-                return plugin_class
-        
-        return None
-
-
-
-    # ================= Scan Pipeline ================= #
-
     def run_scan(self, context: ScanContext) -> ScanResult:
         """
         Execute the complete scan pipeline based on the context.

@@ -7,30 +7,19 @@ from phantom_sweep.core.scan_result import ScanResult
 
 
 class AnalyzerBase(ABC):
-    """
-    Base class for all analyzer plugins (Service Detection, OS Fingerprinting).
-    All analyzer implementations must inherit from this class.
-    """
-    
+
+    @property
     @abstractmethod
     def name(self) -> str:
-        """
-        Return the name/identifier of this analyzer.
-        
-        Returns:
-            str: Analyzer name (e.g., "service_detection_normal", "os_fingerprinting_ai")
-        """
         pass
     
+    @property
+    @abstractmethod
+    def type(self) -> str:
+        pass
+
     @abstractmethod
     def analyze(self, context: ScanContext, result: ScanResult) -> None:
-        """
-        Execute the analysis and update the ScanResult object.
-        
-        Args:
-            context: ScanContext containing scan configuration
-            result: ScanResult object to update with analysis results
-        """
         pass
     
     def get_description(self) -> str:

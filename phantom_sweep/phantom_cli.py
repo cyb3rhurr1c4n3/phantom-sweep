@@ -11,7 +11,7 @@ from phantom_sweep.core.scan_context import (
 )
 from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.core.parsers import parse_targets, parse_exclude_hosts
-from phantom_sweep.module.manager import Manager
+from phantom_sweep.module import Manager
 
 try:
     import pyfiglet
@@ -37,6 +37,7 @@ class PhantomCLI:
         )
         self.args = None
         self.manager = Manager()
+        self.manager.load_plugins()
     
     def print_banner(self):
         """Display ASCII banner"""
@@ -151,28 +152,33 @@ class PhantomCLI:
             ':#################### SCAN PINELINE ####################',
             'Configure which technique to use, which step is enable or disable, bla bla'
         )
+
+        discovery_choices = self.manager.get_discovery_choices()
+        discovery_helptext = "Host discovery technique (default: icmp):" + \
+            self.manager.generate_help_text(self.manager.host_discovery_plugins) + \
+            "\n            - none: Skip discovery" 
+        
         scan_group.add_argument(
             "--ping-tech",
-            choices=["icmp", "tcp", "arp", "none"],
+            choices=discovery_choices,
             default="icmp",
             dest="ping_tech",
-            help="""Host discovery technique (default: icmp):
-            - icmp: ICMP echo request (ping)
-            - tcp: TCP SYN/ACK ping
-            - arp: ARP discovery (local network only)
-            - none: Skip discovery, assume all hosts are up"""
+            help=discovery_helptext
         )
+        
+        scanning_choices = self.manager.get_scanning_choices()
+        scanning_helptext = "Port scanning technique (default: connect):" + \
+            self.manager.generate_help_text(self.manager.port_scan_plugins) + \
+            "\n            - none: Skip port scanning"
+        
         scan_group.add_argument(
             "--scan-tech",
-            choices=["connect", "stealth", "udp", "none"],
+            choices=scanning_choices,
             default="connect",
             dest="scan_tech",
-            help="""Port scanning technique (default: connect):
-            - connect: TCP Connect scan (no root required)
-            - stealth: TCP SYN scan (requires root, faster, stealthier)
-            - udp: UDP scan
-            - none: Skip port scanning (Only Host Discovery)"""
+            help=scanning_helptext
         )
+
         scan_group.add_argument(
             "--service-detection-mode",
             choices=["ai", "normal", "off"],
@@ -220,7 +226,7 @@ class PhantomCLI:
         perf_group.add_argument(
             "--thread",
             type=int,
-            default=10,
+            default=50,
             dest="thread",
             metavar="NUM",
             help="Number of concurrent thread/workers (default: 10). Higher = faster but more resource usage."
@@ -228,7 +234,7 @@ class PhantomCLI:
         perf_group.add_argument(
             "--timeout",
             type=float,
-            default=5.0,
+            default=1.0,
             dest="timeout",
             metavar="SECONDS",
             help="Timeout in seconds for each probe (default: 5.0). AI may auto-adjust if --rate stealthy."
@@ -300,6 +306,8 @@ class PhantomCLI:
             dest="open_only",
             help="Show all port states (closed, filtered, open) in results"
         )
+
+        return parser
     
     def validate_args(self, args):
         """Validate parsed arguments"""
