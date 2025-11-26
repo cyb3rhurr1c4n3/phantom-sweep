@@ -5,7 +5,7 @@ import json
 from typing import Optional
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
-from _trash.reporter_base import ReporterBase
+from phantom_sweep.module._base import ReporterBase
 
 
 class JSONReporter(ReporterBase):
@@ -13,8 +13,17 @@ class JSONReporter(ReporterBase):
     JSON Reporter - Outputs scan results in JSON format (machine-readable).
     """
     
+    @property
     def name(self) -> str:
         return "json"
+    
+    @property
+    def type(self) -> str:
+        return "reporter"
+    
+    @property
+    def description(self) -> str:
+        return "JSON format (machine-readable)"
     
     def export(self, context: ScanContext, result: ScanResult, filename: Optional[str] = None) -> None:
         """

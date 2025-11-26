@@ -3,20 +3,19 @@ Manager - Orchestrates the scan pipeline
 """
 from datetime import datetime
 from typing import Optional
-import os
 
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.module.analyzer import SERVICE_DETECTION_ANALYZERS, OS_FINGERPRINTING_ANALYZERS
-from phantom_sweep.module.reporter import REPORTERS
 
 import importlib
 import pkgutil
 import inspect
-from phantom_sweep.module._base import ScannerBase, ScriptingBase
+from phantom_sweep.module._base import ScannerBase, ScriptingBase, ReporterBase
 import phantom_sweep.module.scanner.host_discovery as host_discovery_module
 import phantom_sweep.module.scanner.port_scanning as port_scanning_module
 import phantom_sweep.module.scripting as scripting_module
+import phantom_sweep.module.reporter as reporter_module
 
 class Manager:
 
@@ -24,15 +23,14 @@ class Manager:
         self.host_discovery_plugins = {}
         self.port_scan_plugins = {}
         self.scripting_plugins = {}
+        self.reporter_plugins = {}
         self.result: Optional[ScanResult] = None
-        print("Initializing Manager...")
-        
     
     # ================= Plugin Loading ================= #
 
     def load_plugins(self):
-        """Quét thư mục module/scanner, module/scripting và nạp tất cả các class kế thừa ScannerBase và ScriptingBase"""
-        print("Loading plugins...")
+        """Quét thư mục module/scanner, module/scripting, module/reporter và nạp tất cả các class kế thừa ScannerBase, ScriptingBase, ReporterBase"""
+        
         # Load host discovery scanners
         for _, module_name, _ in pkgutil.iter_modules(host_discovery_module.__path__):
             module = importlib.import_module(f"phantom_sweep.module.scanner.host_discovery.{module_name}")
@@ -53,8 +51,14 @@ class Manager:
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 if issubclass(obj, ScriptingBase) and obj is not ScriptingBase:
                     self.scripting_plugins[name] = obj
-        print("Loaded plugins successfully.")
-
+        
+        # Load reporter modules
+        for _, module_name, _ in pkgutil.iter_modules(reporter_module.__path__):
+            module = importlib.import_module(f"phantom_sweep.module.reporter.{module_name}")
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if issubclass(obj, ReporterBase) and obj is not ReporterBase:
+                    self.reporter_plugins[name] = obj
+        
     def get_discovery_choices(self):
         """Get available host discovery choices using plugin name property"""
         choices = []
@@ -79,6 +83,30 @@ class Manager:
             choices.append("none")
         return choices
     
+    def get_reporter_choices(self):
+        """Get available reporter output format choices"""
+        choices = []
+        if getattr(self, "reporter_plugins", None):
+            for plugin_class in self.reporter_plugins.values():
+                instance = plugin_class()
+                choices.append(instance.name)
+        choices = sorted(set(choices))  # Remove duplicates and sort
+        if "none" not in choices:
+            choices.append("none")
+        return choices
+    
+    def get_script_choices(self):
+        """Get available script choices"""
+        choices = []
+        if getattr(self, "scripting_plugins", None):
+            for plugin_class in self.scripting_plugins.values():
+                instance = plugin_class()
+                choices.append(instance.name)
+        choices = sorted(set(choices))
+        if "all" not in choices:
+            choices.append("all")  # Allow running all scripts
+        return choices
+
     def generate_help_text(self, plugin_dict):
         text = ""
         for cls in plugin_dict.values():
@@ -86,6 +114,8 @@ class Manager:
             text += f"\n            - {instance.name}: {instance.description}"
         return text
     
+    # ================= Plugin Utilities ================= #
+
     def get_discovery_plugin_by_name(self, plugin_name):
         """Get host discovery plugin class by its name property"""
         if plugin_name == "none":
@@ -110,7 +140,26 @@ class Manager:
         
         return None
 
-
+    def get_reporter_plugin_by_name(self, plugin_name):
+        """Get reporter plugin class by its name property"""
+        if plugin_name == "none":
+            return None
+        
+        for plugin_class in self.reporter_plugins.values():
+            instance = plugin_class()
+            if instance.name == plugin_name:
+                return plugin_class
+        
+        return None
+    
+    def get_script_plugin_by_name(self, plugin_name):
+        """Get scripting plugin class by its name property"""
+        for plugin_class in self.scripting_plugins.values():
+            instance = plugin_class()
+            if instance.name == plugin_name:
+                return plugin_class
+        
+        return None
 
     # ================= Scan Pipeline ================= #
 
@@ -163,12 +212,10 @@ class Manager:
     
     def _run_host_discovery(self, context: ScanContext):
         """Run host discovery phase"""
-        print("Host Discovery Phase Started")
         ping_tech = context.pipeline.ping_tech
         
-        # Get the appropriate scanner
-        print("Host Discovery Phase 2")
-        scanner_class = HOST_DISCOVERY_SCANNERS.get(ping_tech)
+        # Get the appropriate scanner using helper method
+        scanner_class = self.get_discovery_plugin_by_name(ping_tech)
         if not scanner_class:
             if context.verbose:
                 print(f"[!] Unknown ping tech: {ping_tech}, assuming all hosts are up")
@@ -176,21 +223,12 @@ class Manager:
                 self.result.add_host(host, state="up")
             return
         
-        # Check root requirement
-        print("Host Discovery Phase 3")
-        if scanner_class().requires_root() and os.geteuid() != 0:
-            if context.verbose:
-                print(f"[!] {ping_tech} discovery requires root privileges. Assuming all hosts are up.")
-            for host in context.targets.host:
-                self.result.add_host(host, state="up")
-            return
-        
         # Create and run scanner
-        scanner = scanner_class()
-        print("Host Discovery Phase 4")
+        scanner_instance = scanner_class()
         try:
-            scanner.scan(context, self.result)
-            print("Host Discovery Phase 5")
+            if context.verbose:
+                print(f"[*] Running host discovery with {ping_tech}...")
+            scanner_instance.scan(context, self.result)
             if context.verbose:
                 up_count = sum(1 for h in self.result.hosts.values() if h.state == "up")
                 print(f"[*] Host discovery completed: {up_count}/{len(context.targets.host)} hosts up")
@@ -204,38 +242,25 @@ class Manager:
             for host in context.targets.host:
                 if host not in self.result.hosts:
                     self.result.add_host(host, state="up")
-        print("Host Discovery Phase Ended")
         
     def _run_port_scanning(self, context: ScanContext):
         """Run port scanning phase"""
-        print("Port Scanning Phase Started")
         scan_tech = context.pipeline.scan_tech
         
-        # Map scan_tech to scanner name
-        tech_map = {
-            "connect": "connect",
-            "stealth": "stealth",
-            "udp": "udp"
-        }
-        
-        scanner_name = tech_map.get(scan_tech, "connect")
-        scanner_class = PORT_SCANNING_SCANNERS.get(scanner_name)
+        # Get the appropriate scanner using helper method
+        scanner_class = self.get_scanning_plugin_by_name(scan_tech)
         
         if not scanner_class:
             if context.verbose:
-                print(f"[!] Unknown scan tech: {scan_tech}, using TCP Connect scan")
-            scanner_class = PORT_SCANNING_SCANNERS.get("connect")
-        
-        # Check root requirement
-        if scanner_class().requires_root() and os.geteuid() != 0:
-            if context.verbose:
-                print(f"[!] {scan_tech} scan requires root privileges. Falling back to TCP Connect scan.")
-            scanner_class = PORT_SCANNING_SCANNERS.get("connect")
+                print(f"[!] Unknown scan tech: {scan_tech}, skipping port scanning")
+            return
         
         # Create and run scanner
-        scanner = scanner_class()
+        scanner_instance = scanner_class()
         try:
-            scanner.scan(context, self.result)
+            if context.verbose:
+                print(f"[*] Running port scanning with {scan_tech}...")
+            scanner_instance.scan(context, self.result)
             if context.verbose:
                 open_ports = sum(
                     len([p for p in h.tcp_ports.values() if p.state == "open"]) +
@@ -249,7 +274,6 @@ class Manager:
                 traceback.print_exc()
             if context.verbose:
                 print(f"[!] Error during port scanning: {e}")
-        print("Port Scanning Phase Ended")
     
     def _run_service_detection(self, context: ScanContext):
         """Run service detection phase"""
@@ -305,18 +329,27 @@ class Manager:
         
         # Handle "all" script option
         if "all" in script_names:
-            script_names = list(SCRIPTS.keys())
+            script_names = list(self.scripting_plugins.keys())
         
         for script_name in script_names:
-            script_class = SCRIPTS.get(script_name)
+            # Find the script plugin by name
+            script_class = None
+            for plugin_class in self.scripting_plugins.values():
+                instance = plugin_class()
+                if instance.name == script_name:
+                    script_class = plugin_class
+                    break
+            
             if not script_class:
                 if context.verbose:
                     print(f"[!] Unknown script: {script_name}, skipping")
                 continue
             
             # Create and run script
-            script = script_class()
             try:
+                script = script_class()
+                if context.verbose:
+                    print(f"[*] Running script: {script_name}...")
                 script.run(context, self.result)
                 if context.verbose:
                     print(f"[*] Script '{script_name}' completed")
@@ -346,8 +379,14 @@ class Manager:
             if fmt == "none":
                 continue
             
-            # Get the appropriate reporter
-            reporter_class = REPORTERS.get(fmt)
+            # Find reporter by name
+            reporter_class = None
+            for plugin_class in self.reporter_plugins.values():
+                instance = plugin_class()
+                if instance.name == fmt:
+                    reporter_class = plugin_class
+                    break
+            
             if not reporter_class:
                 if context.verbose:
                     print(f"[!] Unknown output format: {fmt}, skipping")

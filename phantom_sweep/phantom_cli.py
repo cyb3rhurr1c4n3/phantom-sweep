@@ -124,7 +124,7 @@ class PhantomCLI:
             "--port",
             metavar="PORT",
             dest="port",
-            default="top_100",
+            default="top_1000",
             help="""Port(s) to scan (default: top_100). Can be: 
             - top_100: Scan 100 most common ports
             - top_1000: Scan 1000 most common ports
@@ -199,12 +199,19 @@ class PhantomCLI:
             - normal: TTL/Window size-based detection
             - off: Disable OS fingerprinting"""
         )
+        
+        script_choices = self.manager.get_script_choices()
+        script_helptext = "Run one or more extension scripts:" + \
+            self.manager.generate_help_text(self.manager.scripting_plugins) + \
+            "\n            - all: Run all available scripts"
+        
         scan_group.add_argument(
             "--script",
             nargs="+",
+            choices=script_choices,
             metavar="SCRIPT",
             dest="script",
-            help="Run one or more extension scripts (e.g., ftp_anon http_risky ssl_check)"
+            help=script_helptext
         )
         
         # Performance and Evasion
@@ -243,7 +250,7 @@ class PhantomCLI:
             "--evasion-mode",
             nargs="+",
             choices=["randomize", "fragment", "decoy", "spoof", "none"],
-            default="none",
+            default=["none"],
             dest="evasion_mode",
             metavar="TECHNIQUE",
             help="""Evasion techniques (can combine multiple):
@@ -258,19 +265,18 @@ class PhantomCLI:
             ':#################### OUTPUT FORMAT ####################',
             'Specify how your output should be format.'
         )
+        
+        reporter_choices = self.manager.get_reporter_choices()
+        reporter_helptext = "Export to file format (default: none):" + \
+            self.manager.generate_help_text(self.manager.reporter_plugins) + \
+            "\n            - none: only print to screen"
+        
         ext_group.add_argument(
             "--output",
+            choices=reporter_choices,
             default="none",
             dest="output_format",
-            help="""Export to file format (default: none):
-            - none: only print to screen
-            - text: Human-readable text format
-            - json: JSON format (machine-readable)
-            - xml: XML format (Nmap-compatible)
-            - csv: CSV format
-            - Multiple: json,xml (comma-separated)
-            
-            """
+            help=reporter_helptext
         )
         ext_group.add_argument(
             "--output-file",
@@ -294,16 +300,9 @@ class PhantomCLI:
             help="Enable debug mode (show detailed error messages and stack traces)"
         )
         misc_group.add_argument(
-            "--open-only",
-            action="store_true",
-            dest="open_only",
-            default=True,
-            help="Only show open ports in results (default: enabled)"
-        )
-        misc_group.add_argument(
             "--all-ports",
-            action="store_false",
-            dest="open_only",
+            action="store_true",
+            dest="all_ports",
             help="Show all port states (closed, filtered, open) in results"
         )
 
@@ -386,7 +385,7 @@ class PhantomCLI:
         )
         
         # Build performance configuration
-        # Handle evasion_mode: if default "none" is set, treat as empty list
+        # Handle evasion_mode: if default ["none"] is set, treat as empty list
         evasion_mode = list(args.evasion_mode) if args.evasion_mode else []
         # If only "none" is in the list, treat as no evasion
         if evasion_mode == ["none"]:
@@ -413,9 +412,12 @@ class PhantomCLI:
             output=output_config,
             verbose=args.verbose,
             debug=args.debug,
-            open_only=getattr(args, 'open_only', True)  # Default to True
+            open_only=not args.all_ports  # --all-ports flag inverts this
         )
         
+        if args.debug:
+            print(f"{Fore.YELLOW}[DEBUG] ScanContext built:{Style.RESET_ALL} {context}")
+
         return context
 
     def print_examples(self):
@@ -453,7 +455,7 @@ class PhantomCLI:
             python phantom.py 192.168.1.1 192.168.1.2 192.168.1.3 --os-fingerprinting-mode ai
 
             {Fore.YELLOW}10. High-speed scan{Style.RESET_ALL}
-                python phantom.py 192.168.1.0/24 --rate insane --thread 100 --timeout 1.0
+            python phantom.py 192.168.1.0/24 --rate insane --thread 100 --timeout 1.0
 
             {Fore.CYAN}{'='*70}{Style.RESET_ALL}
         """
@@ -472,44 +474,52 @@ class PhantomCLI:
             targets = context.targets.host
             if context.targets.host_list:
                 targets += [f"[from file: {context.targets.host_list}]"]
-            print(f"{Fore.YELLOW}Targets:{Style.RESET_ALL} {', '.join(targets) if targets else 'None'}")
+            print(f"{Fore.YELLOW}Targets:{Style.RESET_ALL} {', '.join(targets) if targets else 'none'}")
             
             # Excluded hosts
-            exclude_hosts = context.targets.exclude_host
-            print(f"{Fore.YELLOW}Excluded Hosts:{Style.RESET_ALL} {', '.join(exclude_hosts) if exclude_hosts else 'None'}")
+            exclude_hosts = context.targets.exclude_host or []
+            print(f"{Fore.YELLOW}Excluded Hosts:{Style.RESET_ALL} {', '.join(exclude_hosts) if exclude_hosts else 'none'}")
             
             # Ports
             port_desc = context.ports.port if context.ports.port else "top_100"
             if context.ports.port_list:
                 port_desc += f" [from file: {context.ports.port_list}]"
             print(f"{Fore.YELLOW}Ports:{Style.RESET_ALL} {port_desc}")
+
             # Excluded ports
-            exclude_ports = context.ports.exclude_port
-            print(f"{Fore.YELLOW}Excluded Ports:{Style.RESET_ALL} {', '.join(exclude_ports) if exclude_ports else 'None'}")
+            exclude_ports = context.ports.exclude_port or []
+            print(f"{Fore.YELLOW}Excluded Ports:{Style.RESET_ALL} {', '.join(exclude_ports) if exclude_ports else 'none'}")
 
             # Pipeline
             print(f"{Fore.YELLOW}Ping Technique:{Style.RESET_ALL} {context.pipeline.ping_tech}")
             print(f"{Fore.YELLOW}Scan Technique:{Style.RESET_ALL} {context.pipeline.scan_tech}")
+
             # Service detection
             print(f"{Fore.YELLOW}Service Detection Mode:{Style.RESET_ALL} {context.pipeline.service_detection_mode}")
+
             # OS fingerprinting
             print(f"{Fore.YELLOW}OS Detection Mode:{Style.RESET_ALL} {context.pipeline.os_fingerprinting_mode}")
+
             # Scripts
-            print(f"{Fore.YELLOW}Scripts:{Style.RESET_ALL} {', '.join(context.pipeline.script) if context.pipeline.script else 'None'}")
+            scripts_str = ', '.join(context.pipeline.script) if context.pipeline.script else 'none'
+            print(f"{Fore.YELLOW}Scripts:{Style.RESET_ALL} {scripts_str}")
 
             # Performance
             print(f"{Fore.YELLOW}Performance/Rate:{Style.RESET_ALL} {context.performance.rate}")
             print(f"{Fore.YELLOW}Threads:{Style.RESET_ALL} {context.performance.thread}")
             print(f"{Fore.YELLOW}Timeout:{Style.RESET_ALL} {context.performance.timeout} s")
-            print(f"{Fore.YELLOW}Evasion Mode:{Style.RESET_ALL} {', '.join(context.performance.evasion_mode) if context.performance.evasion_mode else 'None'}")
+            # Evasion Mode
+            evasion_str = ', '.join(context.performance.evasion_mode) if context.performance.evasion_mode else 'none'
+            print(f"{Fore.YELLOW}Evasion Mode:{Style.RESET_ALL} {evasion_str}")
 
             # Output
             print(f"{Fore.YELLOW}Output Format:{Style.RESET_ALL} {context.output.output_format}")
-            print(f"{Fore.YELLOW}Output File:{Style.RESET_ALL} {context.output.output_filename or 'None'}")
+            print(f"{Fore.YELLOW}Output File:{Style.RESET_ALL} {context.output.output_filename or 'none'}")
 
             # Global flags
-            print(f"{Fore.YELLOW}Verbose:{Style.RESET_ALL} {'Enabled' if context.verbose else 'Disabled'}")
-            print(f"{Fore.YELLOW}Debug:{Style.RESET_ALL} {'Enabled' if context.debug else 'Disabled'}")
+            print(f"{Fore.YELLOW}Verbose:{Style.RESET_ALL} {context.verbose}")
+            print(f"{Fore.YELLOW}Debug:{Style.RESET_ALL} {context.debug}")
+            print(f"{Fore.YELLOW}Show only open ports:{Style.RESET_ALL} {context.open_only}")
             print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
 
     def run_scan(self, context: ScanContext) -> ScanResult:
@@ -575,8 +585,13 @@ class PhantomCLI:
         print()
         
         # Print host details
-        for host in sorted(result.hosts.keys()):
+        for host in sorted(result.hosts.keys(), key=lambda x: tuple(map(int, x.split('.')))):
             host_info = result.hosts[host]
+            
+            # Skip down hosts by default (only show up hosts)
+            if host_info.state == "down":
+                continue
+            
             print(f"{Fore.CYAN}Target: {host}{Style.RESET_ALL}")
             print(f"  State: {host_info.state}")
             
@@ -641,14 +656,6 @@ class PhantomCLI:
         
         # Display configuration
         if context.verbose or context.debug:
-            # print(f"\n{Fore.CYAN}Configuration:{Style.RESET_ALL}")
-            # print(f"  Targets: {len(context.targets.host)} target(s)")
-            # print(f"  Ping Tech: {context.pipeline.ping_tech}")
-            # print(f"  Scan Tech: {context.pipeline.scan_tech}")
-            # print(f"  Ports: {context.ports.port}")
-            # print(f"  Rate: {context.performance.rate}")
-            # print(f"  Threads: {context.performance.thread}")
-            # print()
             self.display_config(context)
             
         # Run scan

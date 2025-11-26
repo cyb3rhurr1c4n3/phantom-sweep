@@ -5,7 +5,7 @@ import sys
 from typing import Optional
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
-from _trash.reporter_base import ReporterBase
+from phantom_sweep.module._base import ReporterBase
 
 
 class TextReporter(ReporterBase):
@@ -13,8 +13,17 @@ class TextReporter(ReporterBase):
     Text Reporter - Outputs scan results in human-readable text format.
     """
     
+    @property
     def name(self) -> str:
         return "text"
+    
+    @property
+    def type(self) -> str:
+        return "reporter"
+    
+    @property
+    def description(self) -> str:
+        return "Human-readable text format"
     
     def export(self, context: ScanContext, result: ScanResult, filename: Optional[str] = None) -> None:
         """

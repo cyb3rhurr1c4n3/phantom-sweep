@@ -1,12 +1,9 @@
-"""
-ScannerBase - Base class for all scanner plugins
-"""
 from abc import ABC, abstractmethod
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
 
 
-class ScannerBase(ABC):
+class ReporterBase(ABC):
 
     @property
     @abstractmethod
@@ -23,13 +20,9 @@ class ScannerBase(ABC):
     def description(self) -> str:
         pass
 
-    def requires_root(self) -> bool:
-        """Check if scanner requires root privileges. Override to return True if needed."""
-        return False
-
     def register_cli(self, parser) -> None:
         pass
 
     @abstractmethod
-    def scan(self, context: ScanContext, result: ScanResult) -> None:
+    def export(self, context: ScanContext, result: ScanResult, filename: str = None) -> None:
         pass
