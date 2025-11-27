@@ -3,7 +3,7 @@ pyfiglet
 scapy
 paramiko
 requests
-bs4
+beautifulsoup4
 joblib
 numpy
-sklearn
+scikit-learn
