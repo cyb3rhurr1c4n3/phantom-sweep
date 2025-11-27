@@ -1,27 +1,11 @@
-"""
-Analyzer Module - Service Detection and OS Fingerprinting
-"""
-# TODO: Import analyzer implementations when they are created
-# from phantom_sweep.module.analyzer.service_detection import (
-#     ServiceDetectionNormal, ServiceDetectionAI
-# )
-# from phantom_sweep.module.analyzer.os_fingerprinting import (
-#     OSFingerprintingNormal, OSFingerprintingAI
-# )
 
-# Analyzer registry
-# Format: {mode: AnalyzerClass}
-SERVICE_DETECTION_ANALYZERS = {
-    # "normal": ServiceDetectionNormal,
-    # "ai": ServiceDetectionAI,
-}
+from phantom_sweep.module.analyzer.detect_os_plugin import AIOSFingerprinter
 
+
+# QUAN TRỌNG: Thêm vào registry
 OS_FINGERPRINTING_ANALYZERS = {
-    # "normal": OSFingerprintingNormal,
-    # "ai": OSFingerprintingAI,
+    'ai': AIOSFingerprinter,
 }
-
 __all__ = [
-    'SERVICE_DETECTION_ANALYZERS', 'OS_FINGERPRINTING_ANALYZERS'
+    'AIOSFingerprinter'
 ]
-

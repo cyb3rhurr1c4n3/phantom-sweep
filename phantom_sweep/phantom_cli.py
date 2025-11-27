@@ -677,6 +677,8 @@ class PhantomCLI:
 
 def main():
     """Entry point"""
+    from phantom_sweep.utils.suppress_warnings import suppress_all_warnings
+    suppress_all_warnings()
     cli = PhantomCLI()
     try:
         sys.exit(cli.run())

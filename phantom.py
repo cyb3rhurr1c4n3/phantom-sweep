@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 PhantomSweep - Entry point
 """

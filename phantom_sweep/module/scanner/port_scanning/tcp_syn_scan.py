@@ -46,7 +46,7 @@ class TCPSynScanner(ScannerBase):
             return
         
         if context.verbose:
-            print(f"[*] Starting TCP SYN (Stealth) scan on {len(up_hosts)} hosts ({len(context.targets.port)} ports)...")
+            print(f"[*] Starting TCP SYN (Stealth) scan on {len(up_hosts)} hosts ({len(context.ports.port)} ports)...")
         
         try:
             asyncio.run(self._async_scan(context, result, up_hosts))

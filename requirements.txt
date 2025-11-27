@@ -4,3 +4,6 @@ scapy
 paramiko
 requests
 bs4
+joblib
+numpy
+sklearn
