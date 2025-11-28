@@ -234,8 +234,6 @@ class Manager:
         if not scanner_class:
             if context.verbose:
                 print(f"[!] Unknown ping tech: {ping_tech}, assuming all hosts are up")
-            for host in context.targets.host:
-                self.result.add_host(host, state="up")
             return
         
         # Create and run scanner

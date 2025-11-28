@@ -24,7 +24,6 @@ class ScannerBase(ABC):
         pass
 
     def requires_root(self) -> bool:
-        """Check if scanner requires root privileges. Override to return True if needed."""
         return False
 
     def register_cli(self, parser) -> None:

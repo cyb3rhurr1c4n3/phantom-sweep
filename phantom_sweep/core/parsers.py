@@ -4,7 +4,26 @@ Parsers for targets and ports specifications.
 import ipaddress    
 from typing import List, Set
 import os
+import socket
 from phantom_sweep.core.constants import TOP_100_PORTS, TOP_1000_PORTS
+
+def resolve_domain_to_ip(domain: str) -> str:
+    """
+    Resolve domain name to IP address.
+    
+    Args:
+        domain: Domain name (e.g., scanme.nmap.org)
+        
+    Returns:
+        str: IP address if successful, otherwise return the original domain
+    """
+    try:
+        # Use socket.gethostbyname() to resolve domain
+        ip = socket.gethostbyname(domain)
+        return ip
+    except (socket.gaierror, socket.error, OSError):
+        # If resolution fails, return original domain
+        return domain
 
 def parse_port_spec(port_spec: str, port_list_file: str = None) -> List[int]:
     """
@@ -118,7 +137,7 @@ def parse_targets(targets: List[str]) -> List[str]:
     - IP range (short): 192.168.1.1-100
     - IP range (full): 192.168.1.1-192.168.1.100
     - CIDR: 192.168.1.0/24
-    - Domain: scanme.nmap.org
+    - Domain: scanme.nmap.org (will be resolved to IP)
     """
     result = []
     for target in targets:
@@ -132,7 +151,12 @@ def parse_targets(targets: List[str]) -> List[str]:
                 network = ipaddress.ip_network(target, strict=False)
                 result.extend([str(ip) for ip in network.hosts()])
             except ValueError:
-                result.append(target)
+                # If not a valid CIDR, try to resolve as domain
+                ip = resolve_domain_to_ip(target)
+                if ip != target:
+                    result.append(ip)
+                else:
+                    result.append(target)
         elif '-' in target:
             # IP range - check if it's full format (192.168.1.1-192.168.1.100) or short (192.168.1.1-100)
             if target.count('.') >= 6:  # Full format: has dots on both sides of -
@@ -172,7 +196,15 @@ def parse_targets(targets: List[str]) -> List[str]:
                 result.append(target)
         else:
             # Single IP, domain, or other format
-            result.append(target)
+            # Try to parse as IP first
+            try:
+                ipaddress.IPv4Address(target)
+                result.append(target)
+            except (ValueError, ipaddress.AddressValueError):
+                # Not a valid IP, try to resolve as domain
+                ip = resolve_domain_to_ip(target)
+                result.append(ip)
+    
     return result
 
 def parse_exclude_hosts(exclude_spec: List[str], hosts: List[str]) -> List[str]:

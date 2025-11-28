@@ -13,6 +13,8 @@ from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.core.parsers import parse_targets, parse_exclude_hosts
 from phantom_sweep.module import Manager
 
+from phantom_sweep.utils.suppress_warnings import suppress_all_warnings
+
 try:
     import pyfiglet
     from colorama import Fore, Style, init
@@ -21,6 +23,7 @@ except ImportError:
     print("Error: Missing required packages. Install with:")
     print("pip install pyfiglet colorama")
     sys.exit(1)
+
 
 class PhantomCLI:
     """PhantomSweep CLI Interface"""
@@ -677,7 +680,6 @@ class PhantomCLI:
 
 def main():
     """Entry point"""
-    from phantom_sweep.utils.suppress_warnings import suppress_all_warnings
     suppress_all_warnings()
     cli = PhantomCLI()
     try:

@@ -511,4 +511,4 @@ def create_best_scanner():
         pass
     
     # Fallback to Scapy
-    return ScapyFallbackScanner()
+    return
