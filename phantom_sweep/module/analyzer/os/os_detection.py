@@ -300,6 +300,19 @@ class OSDetectionScanner(ScannerBase):
         except Exception:
             return None
     
+    def _extract_ssh_version(self, banner_lower: str) -> str:
+        try:
+            first_part = banner_lower.split()[0]
+            version = first_part.split("_")[1]
+            return version[0:3]
+        except:
+            return ""
+
+    openssh_ubuntu_version = {"6.6":"14.04", "7.2":"16.04", "7.6":"18.04", "8.2":"20.04", "8.9":"22.04", "9.6":"24.04"}
+    openssh_debian_version = {"6.7":"8", "7.4":"9", "7.9":"10", "8.4":"11", "9.2":"12", "10.0":"13"}
+    iis_windows_version = {"6.0":"Server 2003/Server 2003 R2", "7.0": "Server 2008", "7.5": "7/Server 2008 R2",
+                                   "8.0":"Server 2012", "8.5":"8.1/Server 2012 R2", "10.0": "10/Server 2016/Server 2019/Server 2022/11/Server 2025"}
+
     def _extract_banner_features(self, banners: Dict[int, str]) -> Dict:
         """Extract ML features from service banners"""
         features = {
@@ -310,6 +323,7 @@ class OSDetectionScanner(ScannerBase):
             'ssh_version': None,
             'http_server': None,
             'os_hint_from_banner': None,
+            'possible_os_version': None
         }
         
         for port, banner in banners.items():
@@ -323,11 +337,25 @@ class OSDetectionScanner(ScannerBase):
                     # Extract OS hint
                     if 'ubuntu' in banner_lower:
                         features['os_hint_from_banner'] = 'Ubuntu'
+                        try:
+                            features['possible_os_version'] = self.openssh_ubuntu_version[self._extract_ssh_version(banner_lower)]
+                        except Exception as e:
+                            features['possible_os_version'] = f"unknown"
                     elif 'debian' in banner_lower:
                         features['os_hint_from_banner'] = 'Debian'
+                        try:
+                            features['possible_os_version'] = self.openssh_debian_version[self._extract_ssh_version(banner_lower)]
+                        except Exception as e:
+                            features['possible_os_version'] = f"unknown"
                     elif 'freebsd' in banner_lower:
                         features['os_hint_from_banner'] = 'FreeBSD'
-            
+                    elif 'openbsd' in banner_lower:
+                        features['os_hint_from_banner'] = 'OpenBSD'
+                    else:
+                        features['os_hint_from_banner'] = 'Unknown'
+
+
+
             # HTTP detection
             if port in [80, 443, 8080] or 'http' in banner_lower:
                 features['has_http'] = True
@@ -341,8 +369,18 @@ class OSDetectionScanner(ScannerBase):
                             # OS hints from server header
                             if 'ubuntu' in server.lower():
                                 features['os_hint_from_banner'] = 'Ubuntu'
+                            elif 'debian' in server.lower():
+                                features['os_hint_from_banner'] = 'Debian'
                             elif 'win' in server.lower() or 'iis' in server.lower():
                                 features['os_hint_from_banner'] = 'Windows'
+                                if 'iis' in server.lower():
+                                    try:
+                                        version = server.lower().split("/")[1] # Server: Microsoft-IIS/10.0
+                                        features['possible_os_version'] = self.iis_windows_version[version]
+                                    except Exception as e:
+                                        features['possible_os_version'] = "unknown"
+                            else:
+                                features['os_hint_from_banner'] = 'Unknown'
                             break
             
             # FTP detection

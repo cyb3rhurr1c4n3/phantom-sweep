@@ -88,7 +88,7 @@ class TextReporter(ReporterBase):
                 if host_info.os:
                     os_str = f"  OS: {host_info.os}"
                     if host_info.os_accuracy:
-                        os_str += f" (accuracy: {host_info.os_accuracy}%)"
+                        os_str += f" (accuracy: {host_info.os_accuracy}%) (version {host_info.os_version})"
                     output_lines.append(os_str)
                 
                 # Check if we should filter to open ports only
