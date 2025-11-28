@@ -2,6 +2,7 @@
 Parsers for targets and ports specifications.
 """
 import ipaddress    
+import re
 from typing import List, Set
 import os
 import socket
@@ -126,7 +127,16 @@ def parse_exclude_ports(exclude_spec: List[str], ports: List[int]) -> List[int]:
             exclude_ports.update(parse_port_spec(spec))
     
     return [p for p in ports if p not in exclude_ports]
-
+def is_domain(target):
+    pattern = r"^(?!-)([A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,}$"
+    return re.match(pattern,target) is not None
+def resolve_domain_to_ip(domain):
+    try:
+        result=socket.getaddrinfo(domain,None,socket.AF_INET)
+        ips=list(set([r[4][0] for r in result]))
+        return ips
+    except:
+        return []
 def parse_targets(targets: List[str]) -> List[str]:
     """
     Build target list from various formats.
@@ -144,7 +154,10 @@ def parse_targets(targets: List[str]) -> List[str]:
         target = target.strip()
         if not target:
             continue
-            
+        if is_domain(target):
+            ip=resolve_domain_to_ip(target)
+            result.extend(ip)
+            continue
         if '/' in target:
             # CIDR
             try:

@@ -2,7 +2,7 @@
 PhantomSweep - Ultra-Fast TCP Connect Scanner
 Tối ưu cho tốc độ tối đa với async I/O và smart timeout
 """
-
+import socket
 import asyncio
 import socket
 import time
@@ -15,6 +15,13 @@ from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.module._base import ScannerBase
 from phantom_sweep.core.parsers import parse_port_spec, parse_exclude_ports
 
+# === ADD AI IMPORT ===
+try:
+    from phantom_sweep.module.scanner.port_scanning.ai.scanner_enhancer import AIScannerEnhancer
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+    AIScannerEnhancer = object
 
 class PortState(Enum):
     """Trạng thái của port"""
@@ -58,10 +65,10 @@ class TCPConnectScanner(ScannerBase):
     
     @property
     def description(self) -> str:
-        return "TCP Connect Scan (ultra-fast)"
+        return "TCP Connect Scan (fast parallel, service detection compatible, AI-enhanced)"
     
     def requires_root(self) -> bool:
-        return True
+        return False
     
 
     def __init__(self, max_concurrent: int = 1000):

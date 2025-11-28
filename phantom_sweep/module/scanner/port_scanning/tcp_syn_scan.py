@@ -44,76 +44,71 @@ class TCPSynScanner(ScannerBase):
             if context.verbose:
                 print("[*] No up hosts to scan")
             return
-        
-        if context.verbose:
-            print(f"[*] Starting TCP SYN (Stealth) scan on {len(up_hosts)} hosts ({len(context.ports.port)} ports)...")
-        
-        try:
-            asyncio.run(self._async_scan(context, result, up_hosts))
-        except Exception as e:
-            if context.debug:
-                print(f"[!] TCP SYN scan error: {e}")
-    
-    async def _async_scan(self, context: ScanContext, result: ScanResult, hosts: list):
-        """Masscan-style: Send all SYN → Collect SYN-ACK/RST → Stateless response matching"""
-        open_ports: Dict[str, Set[int]] = {h: set() for h in hosts}
-        filtered_ports: Dict[str, Set[int]] = {h: set() for h in hosts}
-        seq_to_port: Dict[int, Tuple[str, int]] = {}  # seq -> (host, port)
-        
-        # Parse ports from context
+        # Parse ports
         ports = parse_port_spec(context.ports.port, context.ports.port_list)
         if context.ports.exclude_port:
             ports = parse_exclude_ports(context.ports.exclude_port, ports)
         
-        # BPF filter for responses
-        bpf_filter = "tcp[tcpflags] & (tcp-syn|tcp-rst) != 0"
+        if context.verbose:
+            print(f"[*] Starting TCP SYN (Stealth) scan on {len(up_hosts)} hosts ({len(ports)} ports)...")
         
-        # Packet handler
+        try:
+            asyncio.run(self._super_fast(context, result, up_hosts,ports))
+        except Exception as e:
+            if context.debug:
+                print(f"[!] TCP SYN scan error: {e}")
+    
+    async def _super_fast(self, context: ScanContext, result: ScanResult, hosts: list , ports: list):
+        open_ports : Dict[str,set[int]]={h: set() for h in hosts}
+        seq_map={}
+
+        bpf_filter="tcp[tcpflags] & (tcp-syn|tcp-ack|tcp-rst) !=0"
+
         def handle_packet(pkt):
-            if pkt.haslayer(TCP) and pkt.haslayer(IP):
-                src = pkt[IP].src
-                ack = pkt[TCP].ack
-                flags = pkt[TCP].flags
-                
-                if ack in seq_to_port:
-                    host, port = seq_to_port[ack]
-                    if src == host:
-                        if flags.S:  # SYN flag set = open
-                            open_ports[host].add(port)
-                        elif flags.R:  # RST = closed
-                            pass
-        
-        # Start sniffer
-        sniffer = AsyncSniffer(filter=bpf_filter, prn=handle_packet, store=False)
+            if pkt.haslayer(IP) and pkt.haslayer(TCP):
+                ack=pkt[TCP].ack
+                if ack in seq_map:
+                    host , port=seq_map[ack]
+                    flags=pkt[TCP].flags
+
+                    if flags==0x12:
+                        open_ports[host].add(port)
+                        del seq_map[ack]
+                    elif flags & 0x4 ==0x4:
+                        del seq_map[ack]
+        sniffer= AsyncSniffer(filter=bpf_filter,prn=handle_packet,store=False)
         sniffer.start()
         await asyncio.sleep(0.05)
-        
-        # Fire ALL SYN packets (TRUE Masscan-style fire-and-forget)
+
         start = time.time()
-        seq_counter = 0x2000
+        seq = 0x10000
+        packets = []
+
+
         for host in hosts:
             for port in ports:
-                pkt = IP(dst=host, ttl=64) / TCP(dport=port, flags="S", seq=seq_counter, window=64240)
-                seq_to_port[seq_counter] = (host, port)
-                send(pkt, verbose=0)
-                seq_counter += 1
+                pkt=IP(dst=host)/TCP(dport=port,flags='S',seq=seq)
+                packets.append(pkt)
+                seq_map[seq+1]=(host,port)
+                seq+=1
+
+        BATCH_SIZE=1000
+        for i in range(0,len(packets),BATCH_SIZE):
+            batch=packets[i:i+BATCH_SIZE]
+            send(batch,verbose=0,inter=0)
+            await asyncio.sleep(0.001)
+
         send_time = time.time() - start
         
-        total_packets = len(hosts) * len(ports)
-        if context.debug:
-            print(f"[DEBUG] Sent {total_packets} TCP SYN packets in {send_time:.3f}s ({total_packets/send_time:.0f} pps)")
-        
-        # Wait for responses (shorter timeout for SYN scan)
-        await asyncio.sleep(max(context.performance.timeout, 1.0))
         sniffer.stop()
         
         # Add results
         for host in hosts:
             for port in ports:
-                if port in open_ports[host]:
-                    state = "open"
-                elif port in filtered_ports[host]:
-                    state = "filtered"
-                else:
-                    state = "closed"
+                state = "open" if port in open_ports[host] else "closed"
                 result.add_port(host, port, protocol="tcp", state=state)
+        
+        if context.verbose:
+            total_open = sum(len(p) for p in open_ports.values())
+            print(f"[*] Scan completed in {time.time()-start:.2f}s - {total_open} open ports")
+

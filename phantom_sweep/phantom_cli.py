@@ -252,7 +252,7 @@ class PhantomCLI:
         perf_group.add_argument(
             "--evasion-mode",
             nargs="+",
-            choices=["randomize", "fragment", "decoy", "spoof", "none"],
+            choices=["randomize", "fragment", "decoy", "spoof", "none","ai"],
             default=["none"],
             dest="evasion_mode",
             metavar="TECHNIQUE",
@@ -362,7 +362,6 @@ class PhantomCLI:
         if args.exclude_host:
             exclude_host_list = list(args.exclude_host)
             hosts = parse_exclude_hosts(exclude_host_list, hosts)
-        
         target_config = TargetConfig(
             host=hosts,
             host_list=args.host_list,
