@@ -7,7 +7,7 @@ from typing import Optional
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.module._base.analyzer_base import AnalyzerBase
-from phantom_sweep.module.analyzer.service import OS_FINGERPRINTING_ANALYZERS
+from phantom_sweep.module.analyzer.os import OS_FINGERPRINTING_ANALYZERS
 
 import importlib
 import pkgutil

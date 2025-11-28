@@ -33,8 +33,8 @@ class AIOSFingerprinter(AnalyzerBase):
     def _load_predictor(self):
         """Load OS predictor and scanner"""
         try:
-            from phantom_sweep.module.analyzer.os_detection import OSDetectionScanner
-            from phantom_sweep.module.analyzer.os_predictor import OSPredictor
+            from phantom_sweep.module.analyzer.os.os_detection import OSDetectionScanner
+            from phantom_sweep.module.analyzer.os.os_predictor import OSPredictor
             
             self.os_scanner = OSDetectionScanner()
             self.predictor = OSPredictor()
