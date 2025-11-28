@@ -297,6 +297,7 @@ class Manager:
         
         # Get the appropriate analyzer
         analyzer_class = SERVICE_DETECTION_ANALYZERS.get(mode)
+        print(f"[DEBUG] {analyzer_class}")
         if not analyzer_class:
             if context.verbose:
                 print(f"[!] Unknown service detection mode: {mode}, skipping service detection")
