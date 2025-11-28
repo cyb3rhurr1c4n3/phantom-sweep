@@ -63,7 +63,6 @@ class UDPScanner(ScannerBase):
     async def _async_scan(self, context: ScanContext, result: ScanResult, hosts: list):
         """Masscan-style: Send all UDP → Collect ICMP unreachable responses"""
         closed_ports: Dict[str, Set[int]] = {h: set() for h in hosts}
-        port_to_host: Dict[Tuple[str, int], bool] = {}
         
         # Use provided ports or common UDP ports
         ports = parse_port_spec(context.ports.port, context.ports.port_list)
@@ -75,43 +74,52 @@ class UDPScanner(ScannerBase):
         
         # Packet handler
         def handle_packet(pkt):
-            if pkt.haslayer(ICMP) and pkt.haslayer(IP):
-                if pkt[ICMP].type == 3:  # Destination Unreachable
-                    # Extract original packet from ICMP payload
-                    if pkt.haslayer(IP):
-                        orig_dst = pkt[IP].dst
-                        if orig_dst in hosts and pkt[ICMP].code == 3:  # Port unreachable
-                            # Try to extract port from nested packet
-                            try:
-                                if pkt.haslayer(UDP):
-                                    port = pkt[UDP].dport
-                                    if orig_dst in closed_ports:
-                                        closed_ports[orig_dst].add(port)
-                            except:
-                                pass
+            if pkt.haslayer(ICMP) and pkt[ICMP].type == 3:
+                # ✅ Access the ICMP payload (original packet that triggered error)
+                if pkt.haslayer(IP) and IP in pkt[ICMP].payload:
+                    orig_pkt = pkt[ICMP].payload  # Original IP packet
+                    
+                    # ✅ Check if it's from our scan
+                    if orig_pkt.haslayer(IP) and orig_pkt.haslayer(UDP):
+                        target_ip = orig_pkt[IP].dst  # ✅ Target we sent to
+                        target_port = orig_pkt[UDP].dport  # ✅ Port we scanned
+                        
+                        # ICMP code 3 = Port Unreachable
+                        if pkt[ICMP].code == 3 and target_ip in closed_ports:
+                            closed_ports[target_ip].add(target_port)
         
         # Start sniffer
         sniffer = AsyncSniffer(filter=bpf_filter, prn=handle_packet, store=False)
         sniffer.start()
         await asyncio.sleep(0.1)
         
-        # Fire ALL UDP packets (Masscan-style)
+        # Fire ALL UDP packets (Masscan-style) with rate limiting
         start = time.time()
         packet_count = 0
+        packets = []
+        
+        # ✅ Build all packets first
         for host in hosts:
             for port in ports:
-                # Send UDP packet with minimal payload
                 pkt = IP(dst=host) / UDP(dport=port) / b"X"
-                send(pkt, verbose=0)
-                port_to_host[(host, port)] = False  # False = open/filtered
-                packet_count += 1
+                packets.append(pkt)
+        
+        # ✅ Send in batches with rate limiting
+        BATCH_SIZE = 100
+        for i in range(0, len(packets), BATCH_SIZE):
+            batch = packets[i:i + BATCH_SIZE]
+            send(batch, verbose=0, inter=0)
+            packet_count += len(batch)
+            await asyncio.sleep(0.01)  # ✅ Small delay between batches
+        
         send_time = time.time() - start
         
         if context.debug:
             print(f"[DEBUG] Sent {packet_count} UDP packets in {send_time:.3f}s ({packet_count/send_time:.0f} pps)")
         
-        # Wait for ICMP responses
-        await asyncio.sleep(context.performance.timeout * 2)
+        # ✅ Wait longer for UDP responses (UDP is slow!)
+        wait_time = max(5.0, context.performance.timeout * 3)
+        await asyncio.sleep(wait_time)
         sniffer.stop()
         
         # Add results
@@ -122,3 +130,9 @@ class UDPScanner(ScannerBase):
                 else:
                     state = "open|filtered"  # Can't distinguish without response
                 result.add_port(host, port, protocol="udp", state=state)
+        
+        if context.verbose:
+            total_closed = sum(len(p) for p in closed_ports.values())
+            total_scanned = len(hosts) * len(ports)
+            total_open_filtered = total_scanned - total_closed
+            print(f"[*] UDP scan completed: {total_open_filtered} open|filtered, {total_closed} closed")

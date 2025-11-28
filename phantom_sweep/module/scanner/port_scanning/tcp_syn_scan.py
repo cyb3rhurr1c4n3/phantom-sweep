@@ -106,7 +106,6 @@ class TCPSynScanner(ScannerBase):
         for host in hosts:
             for port in ports:
                 state = "open" if port in open_ports[host] else "closed"
-                # Cổng không phản hồi (vẫn còn trong seq_map) cũng được coi là "closed" (hoặc "filtered")
                 result.add_port(host, port, protocol="tcp", state=state)
         
         if context.verbose:
