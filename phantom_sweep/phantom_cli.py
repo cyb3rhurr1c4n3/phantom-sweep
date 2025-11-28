@@ -359,7 +359,7 @@ class PhantomCLI:
         if args.exclude_host:
             exclude_host_list = list(args.exclude_host)
             hosts = parse_exclude_hosts(exclude_host_list, hosts)
-        
+        print(hosts)
         target_config = TargetConfig(
             host=hosts,
             host_list=args.host_list,
