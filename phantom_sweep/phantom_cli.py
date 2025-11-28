@@ -249,7 +249,7 @@ class PhantomCLI:
         perf_group.add_argument(
             "--evasion-mode",
             nargs="+",
-            choices=["randomize", "fragment", "decoy", "spoof", "none"],
+            choices=["randomize", "fragment", "decoy", "spoof", "none","ai"],
             default=["none"],
             dest="evasion_mode",
             metavar="TECHNIQUE",

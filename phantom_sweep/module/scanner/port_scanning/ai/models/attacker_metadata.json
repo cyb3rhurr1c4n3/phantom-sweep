@@ -1,0 +1,30 @@
+{
+    "model_type": "DQN",
+    "training_date": "2025-11-17 05:01:17",
+    "num_episodes": 500,
+    "state_dim": 10,
+    "action_dims": [
+        3,
+        3,
+        11,
+        2
+    ],
+    "final_epsilon": 0.08157186144027828,
+    "evaluation": {
+        "avg_reward": 253.88809999999995,
+        "avg_detections": 0.0,
+        "success_rate": 1.0
+    },
+    "learned_strategies": {
+        "timing": {
+            "slow": 500,
+            "medium": 0,
+            "fast": 0
+        },
+        "port_order": {
+            "sequential": 64,
+            "random": 0,
+            "common_first": 436
+        }
+    }
+}
