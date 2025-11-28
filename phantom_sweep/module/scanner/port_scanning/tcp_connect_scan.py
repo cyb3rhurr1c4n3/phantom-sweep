@@ -1,21 +1,19 @@
 """
-TCP Connect Scan - Ultra-fast Masscan-style scanning
-Optimized for maximum speed
+TCP Connect Scan - Fast parallel full-connection scanning
+Optimized for speed while maintaining service detection compatibility
 """
+import socket
 import asyncio
 import time
 from typing import Set, Dict
-from scapy.all import IP, TCP, AsyncSniffer, send, conf
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.core.parsers import parse_port_spec, parse_exclude_ports
 from phantom_sweep.module._base import ScannerBase
 
-conf.verb = 0
-
 
 class TCPConnectScanner(ScannerBase):
-    """TCP Connect Scan - Ultra-fast stateless scanning"""
+    """TCP Connect Scan - Fast parallel full TCP connection scanning"""
     
     @property
     def name(self) -> str:
@@ -27,10 +25,10 @@ class TCPConnectScanner(ScannerBase):
     
     @property
     def description(self) -> str:
-        return "TCP Connect Scan (ultra-fast)"
+        return "TCP Connect Scan (fast parallel, service detection compatible)"
     
     def requires_root(self) -> bool:
-        return True
+        return False  # Connect scan không cần root
     
     def scan(self, context: ScanContext, result: ScanResult) -> None:
         """Perform ultra-fast TCP connect scan"""
@@ -51,101 +49,66 @@ class TCPConnectScanner(ScannerBase):
             ports = parse_exclude_ports(context.ports.exclude_port, ports)
         
         if context.verbose:
-            print(f"[*] Starting TCP SYN (Stealth) scan on {len(up_hosts)} hosts ({len(ports)} ports)...")
+            print(f"[*] Starting TCP Connect scan on {len(up_hosts)} hosts ({len(ports)} ports)...")
         
         try:
-            asyncio.run(self._ultra_fast_scan(context, result, up_hosts, ports))
+            asyncio.run(self._async_connect_scan(context, result, up_hosts, ports))
         except Exception as e:
             if context.debug:
                 print(f"[!] TCP scan error: {e}")
     
-    async def _ultra_fast_scan(self, context: ScanContext, result: ScanResult, hosts: list, ports: list):
-        """Ultra-fast scanning: Batch send + adaptive timeout"""
+    async def _async_connect_scan(
+        self, context: ScanContext, result: ScanResult, hosts: list, ports: list
+    ):
+        """
+        Ultra-fast async connect scan using asyncio
         
+        Speed optimizations:
+        1. Asyncio for massive parallelism (thousands of concurrent connections)
+        2. Adaptive semaphore based on thread count
+        3. Early timeout detection
+        4. Batch result processing
+        """
+        start_time = time.time()
         open_ports: Dict[str, Set[int]] = {h: set() for h in hosts}
-        seq_map = {}  # seq -> (host, port)
         
-        # BPF filter - only SYN-ACK for speed
-        bpf_filter = "tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack)"
+        # Adaptive semaphore: limit concurrent connections
+        # Higher thread count = more concurrent connections
+        max_concurrent = context.performance.thread * 20  # Multiply for async efficiency
+        semaphore = asyncio.Semaphore(max_concurrent)
         
-        # Packet handler
-        def handle_packet(pkt):
-            if pkt.haslayer(TCP) and pkt.haslayer(IP):
-                ack = pkt[TCP].ack
-                if ack in seq_map:
-                    host, port = seq_map[ack]
-                    if pkt[IP].src == host and pkt[TCP].flags & 0x12 == 0x12:  # SYN-ACK
-                        open_ports[host].add(port)
+        async def test_port(host: str, port: int) -> tuple:
+            """Test single port with semaphore control"""
+            async with semaphore:
+                is_open = await self._async_test_port(host, port, context.performance.timeout)
+                return (host, port, is_open)
         
-        # Start sniffer
-        sniffer = AsyncSniffer(filter=bpf_filter, prn=handle_packet, store=False)
-        sniffer.start()
-        await asyncio.sleep(0.05)
-        
-        # === ULTRA-FAST BATCH SENDING ===
-        start = time.time()
-        seq = 0x10000
-        packets = []
-        
-        # Build all packets first (faster than sending one by one)
+        # Create all tasks
+        tasks = []
         for host in hosts:
             for port in ports:
-                pkt = IP(dst=host)/TCP(dport=port, flags="S", seq=seq)
-                packets.append(pkt)
-                seq_map[seq] = (host, port)
-                seq += 1
-        
-        # Batch send with rate limiting
-        BATCH_SIZE = 1000  # Send 1000 packets per batch
-        for i in range(0, len(packets), BATCH_SIZE):
-            batch = packets[i:i+BATCH_SIZE]
-            send(batch, verbose=0, inter=0)  # inter=0 for max speed
-            await asyncio.sleep(0.001)  # Tiny delay between batches
-        
-        send_time = time.time() - start
+                task = asyncio.create_task(test_port(host, port))
+                tasks.append(task)
         
         if context.debug:
-            pps = len(packets) / send_time if send_time > 0 else 0
-            print(f"[DEBUG] Sent {len(packets)} packets in {send_time:.3f}s ({pps:.0f} pps)")
+            print(f"[DEBUG] Created {len(tasks)} async tasks with {max_concurrent} max concurrent")
         
-        # === ADAPTIVE TIMEOUT ===
-        # Wait based on network size, not fixed timeout
-        total_targets = len(hosts) * len(ports)
+        # Execute all tasks and collect results
+        completed = 0
+        total = len(tasks)
         
-        if total_targets <= 100:
-            wait_time = 0.5
-        elif total_targets <= 1000:
-            wait_time = 1.0
-        elif total_targets <= 10000:
-            wait_time = 2.0
-        else:
-            wait_time = 3.0
-        
-        if context.debug:
-            print(f"[DEBUG] Waiting {wait_time}s for responses...")
-        
-        # Progressive timeout with early exit
-        start_wait = time.time()
-        last_count = 0
-        check_interval = 0.1
-        no_change_threshold = 0.3  # Exit if no new opens for 300ms
-        no_change_time = 0
-        
-        while (time.time() - start_wait) < wait_time:
-            await asyncio.sleep(check_interval)
+        for coro in asyncio.as_completed(tasks):
+            host, port, is_open = await coro
+            if is_open:
+                open_ports[host].add(port)
             
-            current_count = sum(len(ports) for ports in open_ports.values())
-            if current_count == last_count:
-                no_change_time += check_interval
-                if no_change_time >= no_change_threshold:
-                    if context.debug:
-                        print(f"[DEBUG] Early exit after {time.time()-start_wait:.2f}s (no new responses)")
-                    break
-            else:
-                no_change_time = 0
-                last_count = current_count
-        
-        sniffer.stop()
+            completed += 1
+            
+            # Progress indicator for large scans
+            if context.verbose and completed % 1000 == 0:
+                elapsed = time.time() - start_time
+                rate = completed / elapsed if elapsed > 0 else 0
+                print(f"[*] Progress: {completed}/{total} ({rate:.0f} ports/sec)")
         
         # Add results
         for host in hosts:
@@ -155,4 +118,44 @@ class TCPConnectScanner(ScannerBase):
         
         if context.verbose:
             total_open = sum(len(p) for p in open_ports.values())
-            print(f"[*] Scan completed in {time.time()-start:.2f}s - {total_open} open ports")
+            elapsed = time.time() - start_time
+            print(f"[*] Scan completed in {elapsed:.2f}s - {total_open} open ports")
+    
+    async def _async_test_port(self, host: str, port: int, timeout: float) -> bool:
+        """
+        Async test if port is open using asyncio streams
+        
+        This is MUCH faster than threading because:
+        - No thread overhead
+        - Can handle 10,000+ concurrent connections
+        - Non-blocking I/O
+        
+        Returns:
+            True if port is open, False otherwise
+        """
+        try:
+            # asyncio.open_connection = async socket.connect()
+            # Much faster than sync socket for parallel connections
+            future = asyncio.open_connection(host, port)
+            
+            # Wait for connection with timeout
+            reader, writer = await asyncio.wait_for(future, timeout=timeout)
+            
+            # Port is open - close connection immediately
+            writer.close()
+            await writer.wait_closed()
+            
+            return True
+            
+        except asyncio.TimeoutError:
+            # Timeout = port filtered or slow service
+            return False
+        except ConnectionRefusedError:
+            # Connection refused = port closed
+            return False
+        except OSError:
+            # Network error, host unreachable, etc.
+            return False
+        except Exception:
+            # Any other error = treat as closed
+            return False

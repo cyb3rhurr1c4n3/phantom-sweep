@@ -7,12 +7,13 @@ from typing import Optional
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.module._base.analyzer_base import AnalyzerBase
-from phantom_sweep.module.analyzer import OS_FINGERPRINTING_ANALYZERS
+from phantom_sweep.module.analyzer.service import OS_FINGERPRINTING_ANALYZERS
 
 import importlib
 import pkgutil
 import inspect
 from phantom_sweep.module._base import ScannerBase, ScriptingBase, ReporterBase
+from phantom_sweep.module.analyzer.service import SERVICE_DETECTION_ANALYZERS
 import phantom_sweep.module.scanner.host_discovery as host_discovery_module
 import phantom_sweep.module.scanner.port_scanning as port_scanning_module
 import phantom_sweep.module.scripting as scripting_module
