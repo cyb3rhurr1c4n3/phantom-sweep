@@ -110,7 +110,7 @@ class ICMPScanner(ScannerBase):
         recv_sock.setblocking(False) # Tắt chế độ blocking
 
         if context.debug:
-            print(f"[*] Created raw sockets (send + recv)")
+            print(f"[DEBUG] ICMP sockets created")
 
         # Bước 3 - Bật receiver trước khi gửi packets
         recv_task = asyncio.create_task(self.listening(recv_sock, set(hosts), context))
@@ -121,14 +121,14 @@ class ICMPScanner(ScannerBase):
         sent_count = await self.sending(send_sock, hosts, context)
         send_duration = time.time() - start_time
 
-        if context.verbose:
+        if context.debug:
             pps = sent_count / send_duration if send_duration > 0 else 0
-            print(f"[*] Sent {sent_count} packets in {send_duration:.3f}s ({pps:.0f} pps)")
+            print(f"[DEBUG] Sent {sent_count} ICMP packets in {send_duration:.3f}s ({pps:.0f} pps)")
 
         # Bước 5 - Đợi reply với chiến thuật timeout thông minh
         timeout = self.calculate_smart_timeout(len(hosts), context)
         if context.debug:
-            print(f"[*] Calculated optimized timeout: Waiting {timeout:.1f}s for replies...")
+            print(f"[DEBUG] ICMP timeout: {timeout:.1f}s")
 
         try:
             await asyncio.wait_for(self.wait_for_completion(hosts, timeout), timeout=timeout)
@@ -159,7 +159,7 @@ class ICMPScanner(ScannerBase):
         batch_size = min(100, max(10, pps // 10)) # 10 - 100 packets/batch
 
         if context.debug:
-            print(f"\t[*] Sending {pps} pps, batch size: {batch_size}")
+            print(f"[DEBUG] ICMP rate: {pps} pps, batch: {batch_size}")
 
         # Gửi theo batch 
         for i in range(0, len(hosts), batch_size):

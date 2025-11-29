@@ -34,9 +34,10 @@ class HTTPHeaderCheck(ScriptingBase):
             result: ScanResult to update with script results
         """
         if context.verbose:
-            print("[*] Running HTTP Header Check script...")
+            print("[*] Script: HTTP Headers Check")
         
         common_http_ports = [80, 8080, 8000, 8888, 3000, 5000, 9000]
+        findings_count = 0
         
         for host_addr in result.hosts:
             host_info = result.hosts[host_addr]
@@ -54,23 +55,33 @@ class HTTPHeaderCheck(ScriptingBase):
                                 if not hasattr(host_info, 'scripts'):
                                     host_info.scripts = {}
                                 
+                                server = headers.get('Server', 'Unknown')
+                                security = self._check_security_headers(headers)
+                                missing_headers = [k for k, v in security.items() if not v]
+                                
                                 script_key = f"http_headers_{port_num}"
                                 host_info.scripts[script_key] = {
                                     'port': port_num,
-                                    'server': headers.get('Server', 'Unknown'),
-                                    'has_security_headers': self._check_security_headers(headers),
+                                    'server': server,
+                                    'security_headers': security,
+                                    'missing_security_headers': missing_headers,
                                     'headers_count': len(headers)
                                 }
                                 
+                                findings_count += 1
                                 if context.verbose:
-                                    print(f"[+] HTTP service on {host_addr}:{port_num} - Server: {headers.get('Server', 'Unknown')}")
+                                    security_status = "✓" if len(missing_headers) == 0 else f"⚠ Missing {len(missing_headers)}/5"
+                                    print(f"    {host_addr}:{port_num}/tcp - {server} [{security_status}]")
                         
                         except Exception as e:
                             if context.debug:
-                                print(f"[!] Error checking {host_addr}:{port_num}: {e}")
+                                print(f"    [!] Error checking {host_addr}:{port_num}: {e}")
         
         if context.verbose:
-            print("[*] HTTP Header Check completed")
+            if findings_count > 0:
+                print(f"    Found {findings_count} HTTP service(s)")
+            else:
+                print(f"    No HTTP services detected")
     
     def _get_http_headers(self, host, port, timeout=5.0) -> dict:
         """
@@ -131,13 +142,13 @@ class HTTPHeaderCheck(ScriptingBase):
             headers: Dictionary of HTTP headers
             
         Returns:
-            Dictionary with security header status
+            Dictionary with security header status (True = present, False = missing)
         """
         security_headers = {
-            'Strict-Transport-Security': headers.get('Strict-Transport-Security') is not None,
+            'HSTS': headers.get('Strict-Transport-Security') is not None,
             'X-Content-Type-Options': headers.get('X-Content-Type-Options') is not None,
             'X-Frame-Options': headers.get('X-Frame-Options') is not None,
-            'Content-Security-Policy': headers.get('Content-Security-Policy') is not None,
+            'CSP': headers.get('Content-Security-Policy') is not None,
             'X-XSS-Protection': headers.get('X-XSS-Protection') is not None,
         }
         return security_headers

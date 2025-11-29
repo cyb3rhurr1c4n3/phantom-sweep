@@ -589,8 +589,7 @@ class PhantomCLI:
             
             if host_info.os:
                 print(f"  OS: {host_info.os}" + 
-                      (f" (accuracy: {host_info.os_accuracy}%)" if host_info.os_accuracy else "") + 
-                      (f" (version {host_info.os_version})"))
+                      (f" (accuracy: {host_info.os_accuracy}%)" if host_info.os_accuracy else ""))
             
             # Check if we should filter to open ports only
             open_only = context.open_only
@@ -607,7 +606,7 @@ class PhantomCLI:
                         port_info = tcp_ports_to_show[port]
                         service_str = f" ({port_info.service})" if port_info.service else ""
                         version_str = f" {port_info.version}" if port_info.version else ""
-                        print(f"    {port}: {port_info.state}{service_str}{version_str}")
+                        print(f"    {port}/tcp: {port_info.state}{service_str}{version_str}")
             
             if host_info.udp_ports:
                 udp_ports_to_show = host_info.udp_ports
@@ -621,12 +620,26 @@ class PhantomCLI:
                         port_info = udp_ports_to_show[port]
                         service_str = f" ({port_info.service})" if port_info.service else ""
                         version_str = f" {port_info.version}" if port_info.version else ""
-                        print(f"    {port}: {port_info.state}{service_str}{version_str}")
+                        print(f"    {port}/udp: {port_info.state}{service_str}{version_str}")
             
             if host_info.scripts:
-                print(f"  Scripts:")
+                print(f"  Script Results:")
                 for script_name, script_result in host_info.scripts.items():
-                    print(f"    {script_name}: {script_result}")
+                    # Format script results nicely instead of raw dict
+                    if isinstance(script_result, dict):
+                        print(f"    [{script_name}]")
+                        for key, value in script_result.items():
+                            if isinstance(value, dict):
+                                print(f"      {key}:")
+                                for sub_key, sub_value in value.items():
+                                    print(f"        - {sub_key}: {sub_value}")
+                            elif isinstance(value, list):
+                                print(f"      {key}: {', '.join(str(v) for v in value)}")
+                            else:
+                                print(f"      {key}: {value}")
+                    else:
+                        print(f"    {script_name}: {script_result}")
+
             
             print()
         

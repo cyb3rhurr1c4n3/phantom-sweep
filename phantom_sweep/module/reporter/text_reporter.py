@@ -25,6 +25,24 @@ class TextReporter(ReporterBase):
     def description(self) -> str:
         return "Human-readable text format"
     
+    def _format_port_entry(self, port_item):
+        """
+        Normalize port display to include protocol, e.g. "80/tcp" or "53/udp".
+        Accepts either a tuple/dict style or plain number depending on result storage.
+        """
+        try:
+            # common patterns: {"port": 80, "protocol": "tcp"} or (80, "tcp") or 80
+            if isinstance(port_item, dict):
+                p = port_item.get("port") or port_item.get("number") or port_item.get("id")
+                proto = port_item.get("protocol") or port_item.get("proto") or "tcp"
+                return f"{p}/{proto}"
+            if isinstance(port_item, (list, tuple)) and len(port_item) >= 2:
+                return f"{port_item[0]}/{port_item[1]}"
+            # fallback: just number -> assume tcp
+            return f"{int(port_item)}/tcp"
+        except Exception:
+            return str(port_item)
+    
     def export(self, context: ScanContext, result: ScanResult, filename: Optional[str] = None) -> None:
         """
         Export scan results in text format.
@@ -79,8 +97,7 @@ class TextReporter(ReporterBase):
         if not result.hosts:
             output_lines.append("No hosts found.")
         else:
-            for host in sorted(result.hosts.keys()):
-                host_info = result.hosts[host]
+            for host, host_info in result.hosts.items():
                 output_lines.append(f"Host: {host}")
                 output_lines.append(f"  State: {host_info.state}")
                 
@@ -105,7 +122,7 @@ class TextReporter(ReporterBase):
                         output_lines.append("  TCP Ports:")
                         for port in sorted(tcp_ports_to_show.keys()):
                             port_info = tcp_ports_to_show[port]
-                            port_line = f"    {port}: {port_info.state}"
+                            port_line = f"    {port}/tcp: {port_info.state}"
                             
                             if port_info.service:
                                 port_line += f" ({port_info.service}"
@@ -129,7 +146,7 @@ class TextReporter(ReporterBase):
                         output_lines.append("  UDP Ports:")
                         for port in sorted(udp_ports_to_show.keys()):
                             port_info = udp_ports_to_show[port]
-                            port_line = f"    {port}: {port_info.state}"
+                            port_line = f"    {port}/udp: {port_info.state}"
                             
                             if port_info.service:
                                 port_line += f" ({port_info.service}"
@@ -141,9 +158,23 @@ class TextReporter(ReporterBase):
                 
                 # Script results
                 if host_info.scripts:
-                    output_lines.append("  Scripts:")
+                    output_lines.append("  Script Results:")
                     for script_name, script_result in host_info.scripts.items():
-                        output_lines.append(f"    {script_name}: {script_result}")
+                        # Format script results nicely
+                        if isinstance(script_result, dict):
+                            output_lines.append(f"    [{script_name}]")
+                            for key, value in script_result.items():
+                                if isinstance(value, dict):
+                                    output_lines.append(f"      {key}:")
+                                    for sub_key, sub_value in value.items():
+                                        output_lines.append(f"        - {sub_key}: {sub_value}")
+                                elif isinstance(value, list):
+                                    output_lines.append(f"      {key}: {', '.join(str(v) for v in value)}")
+                                else:
+                                    output_lines.append(f"      {key}: {value}")
+                        else:
+                            output_lines.append(f"    {script_name}: {script_result}")
+
                 
                 output_lines.append("")
         

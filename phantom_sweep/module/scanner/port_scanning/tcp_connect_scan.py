@@ -41,8 +41,9 @@ class TCPConnectScanner(ScannerBase):
             return
         
         if context.verbose:
-            print(f"[*] TCP Connect scan on {len(targets)} ports")
-            print(f"[*] Max concurrent connections: {self.max_concurrent}")
+            num_hosts = len(set(t[0] for t in targets))
+            num_ports = len(set(t[1] for t in targets))
+            print(f"[*] TCP Connect: {num_hosts} host(s) x {num_ports} port(s) = {len(targets)} connections")
         
         try:
             asyncio.run(self._async_scan(context, result, targets))
@@ -91,7 +92,7 @@ class TCPConnectScanner(ScannerBase):
         timeout = self._calculate_timeout(len(targets), context)
         
         if context.debug:
-            print(f"[*] Using timeout: {timeout}s per connection")
+            print(f"[DEBUG] TCP timeout: {timeout}s, concurrency: {self.max_concurrent}")
         
         # Create tasks for all targets - must use create_task to actually create Task objects
         tasks = [
@@ -159,7 +160,6 @@ class TCPConnectScanner(ScannerBase):
     def _calculate_timeout(self, num_targets: int, context: ScanContext) -> float:
         """Calculate optimal timeout for TCP connections"""
         base = getattr(context.performance, 'timeout', 3.0)
-        
         # Adaptive timeout based on scan size
         if num_targets <= 100:
             return max(1.0, base * 0.5)

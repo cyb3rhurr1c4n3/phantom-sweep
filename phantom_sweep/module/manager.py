@@ -57,7 +57,9 @@ class Manager:
             module = importlib.import_module(f"phantom_sweep.module.scripting.{module_name}")
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 if issubclass(obj, ScriptingBase) and obj is not ScriptingBase:
-                    self.scripting_plugins[name] = obj
+                    # Use instance.name as key for consistency with get_script_choices()
+                    instance = obj()
+                    self.scripting_plugins[instance.name] = obj
         
         # Load reporter modules
         for _, module_name, _ in pkgutil.iter_modules(reporter_module.__path__):
@@ -104,12 +106,7 @@ class Manager:
     
     def get_script_choices(self):
         """Get available script choices"""
-        choices = []
-        if getattr(self, "scripting_plugins", None):
-            for plugin_class in self.scripting_plugins.values():
-                instance = plugin_class()
-                choices.append(instance.name)
-        choices = sorted(set(choices))
+        choices = list(self.scripting_plugins.keys())
         if "all" not in choices:
             choices.append("all")  # Allow running all scripts
         return choices
@@ -141,6 +138,7 @@ class Manager:
         for plugin_class in self.port_scan_plugins.values():
             instance = plugin_class()
             if instance.name == plugin_name:
+                print (f"Found scanning plugin: {plugin_name}")
                 return plugin_class
         
         return None
@@ -159,12 +157,7 @@ class Manager:
     
     def get_script_plugin_by_name(self, plugin_name):
         """Get scripting plugin class by its name property"""
-        for plugin_class in self.scripting_plugins.values():
-            instance = plugin_class()
-            if instance.name == plugin_name:
-                return plugin_class
-        
-        return None
+        return self.scripting_plugins.get(plugin_name)
 
     # ================= Scan Pipeline ================= #
 
@@ -325,19 +318,20 @@ class Manager:
     
     def _run_scripts(self, context: ScanContext, result: ScanResult):
         """Run extension scripts"""
-        script_names = context.pipeline.script
+        script_names = context.pipeline.script or []
         
         # Handle "all" script option
         if "all" in script_names:
             script_names = list(self.scripting_plugins.keys())
         
+        if not script_names:
+            return
+        
+        if context.verbose:
+            print(f"[*] Running {len(script_names)} script(s)...")
+        
         for script_name in script_names:
-            script_class = None
-            for plugin_class in self.scripting_plugins.values():
-                instance = plugin_class()
-                if instance.name == script_name:
-                    script_class = plugin_class
-                    break
+            script_class = self.get_script_plugin_by_name(script_name)
             
             if not script_class:
                 if context.verbose:
@@ -345,12 +339,24 @@ class Manager:
                 continue
             
             try:
-                script = script_class()
-                if context.verbose:
-                    print(f"[*] Running script: {script_name}...")
-                script.run(context, result)
+                script_instance = script_class()
+                # Scripts may optionally return structured results; capture and print a safe summary
+                script_result = script_instance.run(context, result)
                 if context.verbose:
                     print(f"[*] Script '{script_name}' completed")
+                    if script_result:
+                        try:
+                            if isinstance(script_result, dict):
+                                for host, data in script_result.items():
+                                    print(f"    - {host}: {data}")
+                            elif isinstance(script_result, list):
+                                for item in script_result:
+                                    print(f"    - {item}")
+                            else:
+                                print(f"    - {script_result}")
+                        except Exception:
+                            # Fallback to safe string representation
+                            print(f"    - {repr(script_result)}")
             except Exception as e:
                 if context.debug:
                     import traceback
