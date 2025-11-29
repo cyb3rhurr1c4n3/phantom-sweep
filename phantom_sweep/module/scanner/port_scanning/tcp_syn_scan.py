@@ -33,17 +33,23 @@ class TCPSynScanner(ScannerBase):
         return True
     
     def scan(self, context: ScanContext, result: ScanResult) -> None:
-        """Perform TCP SYN scan on discovered hosts"""
-        hosts = context.targets.host
-        if not hosts:
-            return
+        """
+        Perform TCP SYN scan on discovered hosts
         
-        # Get up hosts
-        up_hosts = [h for h in hosts if h in result.hosts and result.hosts[h].state == "up"]
+        Reads:
+        - result.get_discovered_hosts() - UP hosts from host discovery
+        - context.ports - port configuration
+        
+        Writes:
+        - result.hosts[host].tcp_ports[port].state
+        """
+        # Get UP hosts from host discovery phase
+        up_hosts = result.get_discovered_hosts()
         if not up_hosts:
             if context.verbose:
                 print("[*] No up hosts to scan")
             return
+        
         # Parse ports
         ports = parse_port_spec(context.ports.port, context.ports.port_list)
         if context.ports.exclude_port:
@@ -53,7 +59,7 @@ class TCPSynScanner(ScannerBase):
             print(f"[*] Starting TCP SYN (Stealth) scan on {len(up_hosts)} hosts ({len(ports)} ports)...")
         
         try:
-            asyncio.run(self._super_fast(context, result, up_hosts,ports))
+            asyncio.run(self._super_fast(context, result, up_hosts, ports))
         except Exception as e:
             if context.debug:
                 print(f"[!] TCP SYN scan error: {e}")

@@ -1,24 +1,22 @@
 """
 Manager - Orchestrates the scan pipeline
 """
-from datetime import datetime
-from typing import Optional
-
-from phantom_sweep.core.scan_context import ScanContext
-from phantom_sweep.core.scan_result import ScanResult
-from phantom_sweep.module._base.analyzer_base import AnalyzerBase
-from phantom_sweep.module.analyzer.os import OS_FINGERPRINTING_ANALYZERS
 
 import importlib
 import pkgutil
 import inspect
-from phantom_sweep.module._base import ScannerBase, ScriptingBase, ReporterBase
+from datetime import datetime
+from typing import Optional
+from phantom_sweep.core.scan_context import ScanContext
+from phantom_sweep.core.scan_result import ScanResult
+from phantom_sweep.module._base import ScannerBase, ScriptingBase, ReporterBase, AnalyzerBase
 from phantom_sweep.module.analyzer.service import SERVICE_DETECTION_ANALYZERS
+from phantom_sweep.module.analyzer.os import OS_FINGERPRINTING_ANALYZERS
 import phantom_sweep.module.scanner.host_discovery as host_discovery_module
 import phantom_sweep.module.scanner.port_scanning as port_scanning_module
+import phantom_sweep.module.analyzer as analyzer_module
 import phantom_sweep.module.scripting as scripting_module
 import phantom_sweep.module.reporter as reporter_module
-import phantom_sweep.module.analyzer as analyzer_module
 
 class Manager:
 
@@ -27,7 +25,7 @@ class Manager:
         self.port_scan_plugins = {}
         self.scripting_plugins = {}
         self.reporter_plugins = {}
-        self.result: Optional[ScanResult] = None
+
     
     # ================= Plugin Loading ================= #
 
@@ -123,8 +121,6 @@ class Manager:
             text += f"\n            - {instance.name}: {instance.description}"
         return text
     
-    # ================= Plugin Utilities ================= #
-
     def get_discovery_plugin_by_name(self, plugin_name):
         """Get host discovery plugin class by its name property"""
         if plugin_name == "none":
@@ -174,77 +170,76 @@ class Manager:
 
     def run_scan(self, context: ScanContext) -> ScanResult:
         """
-        Execute the complete scan pipeline based on the context.
+        Execute the complete scan pipeline.
+        
+        Manages the flow of context (input) -> phases -> result (output)
         
         Args:
-            context: ScanContext containing scan configuration
+            context: ScanContext containing scan parameters
             
         Returns:
             ScanResult containing all scan results
         """
-        # Initialize result
-        self.result = ScanResult()
-        self.result.scan_start_time = datetime.now().isoformat()
+        result = ScanResult()
+        result.scan_start_time = datetime.now().isoformat()
         
         try:
             # Step 1: Host Discovery (if enabled)
             if context.pipeline.ping_tech != "none":
-                self._run_host_discovery(context)
+                self._run_host_discovery(context, result)
             else:
-                # Ping disabled, assume all hosts UP
                 if context.verbose:
                     print(f"[*] Ping disabled, assuming all hosts are up...")
                 for host in context.targets.host:
-                    self.result.add_host(host, state="up")
+                    result.add_host(host, state="up")
                 if context.verbose:
                     print(f"[*] Added {len(context.targets.host)} hosts as UP")
+            
             # Step 2: Port Scanning (if enabled)
             if context.pipeline.scan_tech != "none":
-                self._run_port_scanning(context)
+                self._run_port_scanning(context, result)
             
             # Step 3: Service Detection (if enabled)
             if context.pipeline.service_detection_mode != "off":
-                self._run_service_detection(context)
+                self._run_service_detection(context, result)
             
             # Step 4: OS Fingerprinting (if enabled)
             if context.pipeline.os_fingerprinting_mode != "off":
-                self._run_os_fingerprinting(context)
+                self._run_os_fingerprinting(context, result)
             
             # Step 5: Scripts (if specified)
             if context.pipeline.script:
-                self._run_scripts(context)
+                self._run_scripts(context, result)
             
             # Update statistics
-            self.result.update_statistics()
+            result.update_statistics()
             
         finally:
-            self.result.scan_end_time = datetime.now().isoformat()
-            if self.result.scan_start_time and self.result.scan_end_time:
-                start = datetime.fromisoformat(self.result.scan_start_time)
-                end = datetime.fromisoformat(self.result.scan_end_time)
-                self.result.scan_duration = (end - start).total_seconds()
+            result.scan_end_time = datetime.now().isoformat()
+            if result.scan_start_time and result.scan_end_time:
+                start = datetime.fromisoformat(result.scan_start_time)
+                end = datetime.fromisoformat(result.scan_end_time)
+                result.scan_duration = (end - start).total_seconds()
         
-        return self.result
+        return result
     
-    def _run_host_discovery(self, context: ScanContext):
+    def _run_host_discovery(self, context: ScanContext, result: ScanResult):
         """Run host discovery phase"""
         ping_tech = context.pipeline.ping_tech
         
-        # Get the appropriate scanner using helper method
         scanner_class = self.get_discovery_plugin_by_name(ping_tech)
         if not scanner_class:
             if context.verbose:
                 print(f"[!] Unknown ping tech: {ping_tech}, assuming all hosts are up")
             return
         
-        # Create and run scanner
         scanner_instance = scanner_class()
         try:
             if context.verbose:
                 print(f"[*] Running host discovery with {ping_tech}...")
-            scanner_instance.scan(context, self.result)
+            scanner_instance.scan(context, result)
             if context.verbose:
-                up_count = sum(1 for h in self.result.hosts.values() if h.state == "up")
+                up_count = result.get_alive_hosts_count()
                 print(f"[*] Host discovery completed: {up_count}/{len(context.targets.host)} hosts up")
         except Exception as e:
             if context.debug:
@@ -254,14 +249,13 @@ class Manager:
                 print(f"[!] Error during host discovery: {e}")
             # Fallback: assume all hosts are up
             for host in context.targets.host:
-                if host not in self.result.hosts:
-                    self.result.add_host(host, state="up")
+                if host not in result.hosts:
+                    result.add_host(host, state="up")
         
-    def _run_port_scanning(self, context: ScanContext):
+    def _run_port_scanning(self, context: ScanContext, result: ScanResult):
         """Run port scanning phase"""
         scan_tech = context.pipeline.scan_tech
         
-        # Get the appropriate scanner using helper method
         scanner_class = self.get_scanning_plugin_by_name(scan_tech)
         
         if not scanner_class:
@@ -269,18 +263,14 @@ class Manager:
                 print(f"[!] Unknown scan tech: {scan_tech}, skipping port scanning")
             return
         
-        # Create and run scanner
         scanner_instance = scanner_class()
+        
         try:
             if context.verbose:
                 print(f"[*] Running port scanning with {scan_tech}...")
-            scanner_instance.scan(context, self.result)
+            scanner_instance.scan(context, result)
             if context.verbose:
-                open_ports = sum(
-                    len([p for p in h.tcp_ports.values() if p.state == "open"]) +
-                    len([p for p in h.udp_ports.values() if p.state == "open"])
-                    for h in self.result.hosts.values()
-                )
+                open_ports = result.get_open_ports_count()
                 print(f"[*] Port scanning completed: {open_ports} open ports found")
         except Exception as e:
             if context.debug:
@@ -289,22 +279,19 @@ class Manager:
             if context.verbose:
                 print(f"[!] Error during port scanning: {e}")
     
-    def _run_service_detection(self, context: ScanContext):
+    def _run_service_detection(self, context: ScanContext, result: ScanResult):
         """Run service detection phase"""
         mode = context.pipeline.service_detection_mode
         
-        # Get the appropriate analyzer
         analyzer_class = SERVICE_DETECTION_ANALYZERS.get(mode)
-        print(f"[DEBUG] {analyzer_class}")
         if not analyzer_class:
             if context.verbose:
                 print(f"[!] Unknown service detection mode: {mode}, skipping service detection")
             return
         
-        # Create and run analyzer
         analyzer = analyzer_class()
         try:
-            analyzer.analyze(context, self.result)
+            analyzer.analyze(context, result)
             if context.verbose:
                 print(f"[*] Service detection completed (mode: {mode})")
         except Exception as e:
@@ -314,20 +301,19 @@ class Manager:
             if context.verbose:
                 print(f"[!] Error during service detection: {e}")
     
-    def _run_os_fingerprinting(self, context: ScanContext):
+    def _run_os_fingerprinting(self, context: ScanContext, result: ScanResult):
         """Run OS fingerprinting phase"""
         mode = context.pipeline.os_fingerprinting_mode
-        # Get the appropriate analyzer
+        
         analyzer_class = OS_FINGERPRINTING_ANALYZERS.get(mode)
         if not analyzer_class:
             if context.verbose:
                 print(f"[!] Unknown OS fingerprinting mode: {mode}, skipping OS fingerprinting")
             return
         
-        # Create and run analyzer
         analyzer = analyzer_class()
         try:
-            analyzer.analyze(context, self.result)
+            analyzer.analyze(context, result)
             if context.verbose:
                 print(f"[*] OS fingerprinting completed (mode: {mode})")
         except Exception as e:
@@ -337,7 +323,7 @@ class Manager:
             if context.verbose:
                 print(f"[!] Error during OS fingerprinting: {e}")
     
-    def _run_scripts(self, context: ScanContext):
+    def _run_scripts(self, context: ScanContext, result: ScanResult):
         """Run extension scripts"""
         script_names = context.pipeline.script
         
@@ -346,7 +332,6 @@ class Manager:
             script_names = list(self.scripting_plugins.keys())
         
         for script_name in script_names:
-            # Find the script plugin by name
             script_class = None
             for plugin_class in self.scripting_plugins.values():
                 instance = plugin_class()
@@ -359,12 +344,11 @@ class Manager:
                     print(f"[!] Unknown script: {script_name}, skipping")
                 continue
             
-            # Create and run script
             try:
                 script = script_class()
                 if context.verbose:
                     print(f"[*] Running script: {script_name}...")
-                script.run(context, self.result)
+                script.run(context, result)
                 if context.verbose:
                     print(f"[*] Script '{script_name}' completed")
             except Exception as e:

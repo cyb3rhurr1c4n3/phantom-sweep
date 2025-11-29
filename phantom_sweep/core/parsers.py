@@ -127,16 +127,11 @@ def parse_exclude_ports(exclude_spec: List[str], ports: List[int]) -> List[int]:
             exclude_ports.update(parse_port_spec(spec))
     
     return [p for p in ports if p not in exclude_ports]
+
 def is_domain(target):
     pattern = r"^(?!-)([A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,}$"
     return re.match(pattern,target) is not None
-def resolve_domain_to_ip(domain):
-    try:
-        result=socket.getaddrinfo(domain,None,socket.AF_INET)
-        ips=list(set([r[4][0] for r in result]))
-        return ips
-    except:
-        return []
+
 def parse_targets(targets: List[str]) -> List[str]:
     """
     Build target list from various formats.
@@ -156,13 +151,13 @@ def parse_targets(targets: List[str]) -> List[str]:
             continue
         if is_domain(target):
             ip=resolve_domain_to_ip(target)
-            result.extend(ip)
+            result.append(ip)
             continue
         if '/' in target:
             # CIDR
             try:
                 network = ipaddress.ip_network(target, strict=False)
-                result.extend([str(ip) for ip in network.hosts()])
+                result.extend([str(ip) for ip in network])
             except ValueError:
                 # If not a valid CIDR, try to resolve as domain
                 ip = resolve_domain_to_ip(target)
@@ -245,4 +240,3 @@ def parse_exclude_hosts(exclude_spec: List[str], hosts: List[str]) -> List[str]:
     
     # Filter out excluded hosts
     return [h for h in hosts if h not in exclude_set]
-

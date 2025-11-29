@@ -39,13 +39,18 @@ class UDPScanner(ScannerBase):
         return True
     
     def scan(self, context: ScanContext, result: ScanResult) -> None:
-        """Perform UDP port scan on discovered hosts"""
-        hosts = context.targets.host
-        if not hosts:
-            return
+        """
+        Perform UDP port scan on discovered hosts
         
-        # Get up hosts
-        up_hosts = [h for h in hosts if h in result.hosts and result.hosts[h].state == "up"]
+        Reads:
+        - result.get_discovered_hosts() - UP hosts from host discovery
+        - context.ports - port configuration
+        
+        Writes:
+        - result.hosts[host].udp_ports[port].state
+        """
+        # Get UP hosts from host discovery phase
+        up_hosts = result.get_discovered_hosts()
         if not up_hosts:
             if context.verbose:
                 print("[*] No up hosts to scan")

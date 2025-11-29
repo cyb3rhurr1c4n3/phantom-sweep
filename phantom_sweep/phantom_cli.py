@@ -7,7 +7,7 @@ import os
 
 from phantom_sweep.core.scan_context import (
     ScanContext, TargetConfig, PortConfig, PipelineConfig,
-    PerformanceAndEvasionConfig, OutputConfig
+    PerformanceConfig, OutputConfig
 )
 from phantom_sweep.core.scan_result import ScanResult
 from phantom_sweep.core.parsers import parse_targets, parse_exclude_hosts
@@ -252,7 +252,7 @@ class PhantomCLI:
         perf_group.add_argument(
             "--evasion-mode",
             nargs="+",
-            choices=["randomize", "fragment", "decoy", "spoof", "none","ai"],
+            choices=["randomize", "fragment", "decoy", "spoof", "ai", "none"],
             default=["none"],
             dest="evasion_mode",
             metavar="TECHNIQUE",
@@ -260,7 +260,10 @@ class PhantomCLI:
             - randomize: Randomize host and port order
             - fragment: Fragment packets
             - decoy: Use decoy IPs
-            - spoof: Spoof source IP"""
+            - spoof: Spoof source IP
+            - ai: AI-powered adaptive evasion
+            - none: No evasion (default)
+            """
         )
         
         # Extension & Output
@@ -387,12 +390,11 @@ class PhantomCLI:
         )
         
         # Build performance configuration
-        # Handle evasion_mode: if default ["none"] is set, treat as empty list
         evasion_mode = list(args.evasion_mode) if args.evasion_mode else []
         # If only "none" is in the list, treat as no evasion
         if evasion_mode == ["none"]:
             evasion_mode = []
-        performance_config = PerformanceAndEvasionConfig(
+        performance_config = PerformanceConfig(
             rate=args.rate,
             thread=args.thread,
             timeout=args.timeout,
@@ -416,50 +418,47 @@ class PhantomCLI:
             debug=args.debug,
             open_only=not args.all_ports  # --all-ports flag inverts this
         )
-        
-        if args.debug:
-            print(f"{Fore.YELLOW}[DEBUG] ScanContext built:{Style.RESET_ALL} {context}")
 
         return context
 
     def print_examples(self):
         """Show detailed usage examples"""
         examples = f"""
-            {Fore.CYAN}{'='*70}{Style.RESET_ALL}
-            {Fore.CYAN}PHANTOMSWEEP USAGE EXAMPLES{Style.RESET_ALL}
-            {Fore.CYAN}{'='*70}{Style.RESET_ALL}
+        {Fore.CYAN}{'='*70}{Style.RESET_ALL}
+        {Fore.CYAN}PHANTOMSWEEP USAGE EXAMPLES{Style.RESET_ALL}
+        {Fore.CYAN}{'='*70}{Style.RESET_ALL}
 
-            {Fore.YELLOW}1. Default scan (uses default options: top_100 ports, icmp ping, connect scan){Style.RESET_ALL}
-            python phantom.py 192.168.1.1
+        {Fore.YELLOW}1. Default scan (uses default options: top_100 ports, icmp ping, connect scan){Style.RESET_ALL}
+        python phantom.py 192.168.1.1
 
-            {Fore.YELLOW}2. Custom network scan with specific ports and output format{Style.RESET_ALL}
-            python phantom.py 192.168.1.0/24 --port 80,443 --output json --output-file results.json
+        {Fore.YELLOW}2. Custom network scan with specific ports and output format{Style.RESET_ALL}
+        python phantom.py 192.168.1.0/24 --port 80,443 --output json --output-file results.json
 
-            {Fore.YELLOW}3. Stealth scan with AI evasion{Style.RESET_ALL}
-            python phantom.py 192.168.1.0/24 --ping-tech none --scan-tech stealth --rate stealthy --evasion-mode randomize
+        {Fore.YELLOW}3. Stealth scan with AI evasion{Style.RESET_ALL}
+        python phantom.py 192.168.1.0/24 --ping-tech none --scan-tech stealth --rate stealthy --evasion-mode randomize
 
-            {Fore.YELLOW}4. Full scan with all scripts and multiple output formats{Style.RESET_ALL}
-            python phantom.py 192.168.1.1 --port all --script all --output json,xml
+        {Fore.YELLOW}4. Full scan with all scripts and multiple output formats{Style.RESET_ALL}
+        python phantom.py 192.168.1.1 --port all --script all --output json,xml
 
-            {Fore.YELLOW}5. UDP scan on specific ports{Style.RESET_ALL}
-            python phantom.py 192.168.1.1 --scan-tech udp --port 53,161
+        {Fore.YELLOW}5. UDP scan on specific ports{Style.RESET_ALL}
+        python phantom.py 192.168.1.1 --scan-tech udp --port 53,161
 
-            {Fore.YELLOW}6. Scan with exclusions{Style.RESET_ALL}
-            python phantom.py 192.168.1.0/24 --exclude-host 192.168.1.1 192.168.1.100 --port top_1000 --exclude-port 80,443
+        {Fore.YELLOW}6. Scan with exclusions{Style.RESET_ALL}
+        python phantom.py 192.168.1.0/24 --exclude-host 192.168.1.1 192.168.1.100 --port top_1000 --exclude-port 80,443
 
-            {Fore.YELLOW}7. Scan from file with service detection{Style.RESET_ALL}
-            python phantom.py --host-list targets.txt --port top_100 --service-detection-mode normal
+        {Fore.YELLOW}7. Scan from file with service detection{Style.RESET_ALL}
+        python phantom.py --host-list targets.txt --port top_100 --service-detection-mode normal
 
-            {Fore.YELLOW}8. IP range scan{Style.RESET_ALL}
-            python phantom.py 192.168.1.1-192.168.1.100 --port 22,80,443
+        {Fore.YELLOW}8. IP range scan{Style.RESET_ALL}
+        python phantom.py 192.168.1.1-192.168.1.100 --port 22,80,443
 
-            {Fore.YELLOW}9. Multiple targets with OS fingerprinting{Style.RESET_ALL}
-            python phantom.py 192.168.1.1 192.168.1.2 192.168.1.3 --os-fingerprinting-mode ai
+        {Fore.YELLOW}9. Multiple targets with OS fingerprinting{Style.RESET_ALL}
+        python phantom.py 192.168.1.1 192.168.1.2 192.168.1.3 --os-fingerprinting-mode ai
 
-            {Fore.YELLOW}10. High-speed scan{Style.RESET_ALL}
-            python phantom.py 192.168.1.0/24 --rate insane --thread 100 --timeout 1.0
+        {Fore.YELLOW}10. High-speed scan{Style.RESET_ALL}
+        python phantom.py 192.168.1.0/24 --rate insane --thread 100 --timeout 1.0
 
-            {Fore.CYAN}{'='*70}{Style.RESET_ALL}
+        {Fore.CYAN}{'='*70}{Style.RESET_ALL}
         """
         print(examples)
 
@@ -525,19 +524,9 @@ class PhantomCLI:
             print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
 
     def run_scan(self, context: ScanContext) -> ScanResult:
-        """
-        Run the scan pipeline using Manager.
-        
-        Args:
-            context: ScanContext containing scan configuration
-            
-        Returns:
-            ScanResult containing all scan results
-        """
         # Use Manager to orchestrate the scan
         result = self.manager.run_scan(context)
         
-        # Generate output using reporter modules (if not "none")
         if context.output.output_format != "none":
             self.manager.generate_output(context, result)
         
@@ -549,7 +538,8 @@ class PhantomCLI:
             return  # Results are saved to file by reporter modules
         
         print(f"\n{Fore.GREEN}{'='*70}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}SCAN RESULTS{Style.RESET_ALL}\n")
+        print(f"{Fore.GREEN}SCAN RESULTS{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}{'='*70}{Style.RESET_ALL}\n")
         
         # Print scan summary information
         if result.scan_start_time:

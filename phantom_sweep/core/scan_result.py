@@ -74,8 +74,25 @@ class ScanResult:
         
         return port_info
     
-    def get_port(self, port: int) -> Optional[PortInfo]: # Implement this
+    def get_port(self, port: int) -> Optional[PortInfo]:
+        """Implement this"""
         pass
+    
+    def get_discovered_hosts(self) -> List[str]:
+        """Get list of discovered UP hosts"""
+        return [h for h in self.hosts.keys() if self.hosts[h].state == "up"]
+    
+    def get_alive_hosts_count(self) -> int:
+        """Get count of discovered alive hosts"""
+        return sum(1 for h in self.hosts.values() if h.state == "up")
+    
+    def get_open_ports_count(self) -> int:
+        """Get count of open ports found so far"""
+        count = 0
+        for host in self.hosts.values():
+            count += sum(1 for p in host.tcp_ports.values() if p.state == "open")
+            count += sum(1 for p in host.udp_ports.values() if p.state == "open")
+        return count
 
     def update_statistics(self):
         """Update scan statistics"""
@@ -152,4 +169,3 @@ class ScanResult:
                 **self.metadata
             }
         }
-

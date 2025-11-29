@@ -29,7 +29,7 @@ class TCPPingScanner(ScannerBase):
     
     @property
     def description(self) -> str:
-        return "TCP SYN Ping to common ports (80, 443, 22, etc.)"
+        return "TCP SYN Ping Discovery to common ports"
     
     def requires_root(self) -> bool:
         return True
