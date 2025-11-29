@@ -589,7 +589,8 @@ class PhantomCLI:
             
             if host_info.os:
                 print(f"  OS: {host_info.os}" + 
-                      (f" (accuracy: {host_info.os_accuracy}%)" if host_info.os_accuracy else ""))
+                      (f" (accuracy: {host_info.os_accuracy}%)" if host_info.os_accuracy else "") + 
+                      (f" (version {host_info.os_version})"))
             
             # Check if we should filter to open ports only
             open_only = context.open_only

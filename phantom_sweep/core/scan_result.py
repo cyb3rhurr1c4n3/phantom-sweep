@@ -23,6 +23,7 @@ class HostInfo:
     host: str
     state: str = "unknown"  # up, down, unknown
     os: Optional[str] = None
+    os_version: Optional[str] = None
     os_accuracy: Optional[int] = None
     tcp_ports: Dict[int, PortInfo] = field(default_factory=dict)
     udp_ports: Dict[int, PortInfo] = field(default_factory=dict)
@@ -128,6 +129,7 @@ class ScanResult:
                     "host": info.host,
                     "state": info.state,
                     "os": info.os,
+                    "os_version": info.os_version,
                     "os_accuracy": info.os_accuracy,
                     "tcp_ports": {
                         port: {
