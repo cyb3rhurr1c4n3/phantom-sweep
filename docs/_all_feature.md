@@ -1,6 +1,16 @@
-# NT140 - All Feature of PhantomSweep
+# NT140 - Proposal
 
-## phantom --help (chưa hoàn thiện hoàn toàn)
+## Tên dự án
+
+PhantomSweep - A fast, lightweight and scalable network security scanner
+
+## Mục tiêu
+
+Xây dựng một công cụ quét mạng (network reconnaissance tool) **cực nhanh, nhẹ, dễ mở rộng và thông minh (AI)**, lấy cảm hứng từ Nmap/Masscan. Qua đó giúp quản trị viên mạng, pentester và red teamer **khám phá hệ thống mục tiêu**: phát hiện host, cổng mở, dịch vụ, phiên bản, và hệ điều hành. Đồng thời, tạo ra cơ chế dynamic plugin loading, đảm bảo công cụ vừa mang tính **học thuật** (phục vụ đồ án) vừa có giá trị **thực tiễn** (có thể đưa lên GitHub/CV như một open-source project có giá trị cao, cộng đồng có thể tham gia một cách dễ dàng).
+
+## Yêu cầu
+
+## phantom --help
 
 ```text
 :#################### GENERAL ####################:

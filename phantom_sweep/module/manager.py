@@ -9,12 +9,11 @@ from datetime import datetime
 from typing import Optional
 from phantom_sweep.core.scan_context import ScanContext
 from phantom_sweep.core.scan_result import ScanResult
-from phantom_sweep.module._base import ScannerBase, ScriptingBase, ReporterBase, AnalyzerBase
+from phantom_sweep.module._base import ScannerBase, ScriptingBase, ReporterBase
 from phantom_sweep.module.analyzer.service import SERVICE_DETECTION_ANALYZERS
 from phantom_sweep.module.analyzer.os import OS_FINGERPRINTING_ANALYZERS
 import phantom_sweep.module.scanner.host_discovery as host_discovery_module
 import phantom_sweep.module.scanner.port_scanning as port_scanning_module
-import phantom_sweep.module.analyzer as analyzer_module
 import phantom_sweep.module.scripting as scripting_module
 import phantom_sweep.module.reporter as reporter_module
 
@@ -38,12 +37,6 @@ class Manager:
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 if issubclass(obj, ScannerBase) and obj is not ScannerBase:
                     self.host_discovery_plugins[name] = obj
-        # Load analyze
-        for _, module_name, _ in pkgutil.iter_modules(analyzer_module.__path__):
-            module = importlib.import_module(f"phantom_sweep.module.analyzer.{module_name}")
-            for name, obj in inspect.getmembers(module, inspect.isclass):
-                if issubclass(obj, AnalyzerBase) and obj is not AnalyzerBase:
-                    self.port_scan_plugins[name] = obj
 
         # Load port scanning scanners
         for _, module_name, _ in pkgutil.iter_modules(port_scanning_module.__path__):
@@ -138,7 +131,6 @@ class Manager:
         for plugin_class in self.port_scan_plugins.values():
             instance = plugin_class()
             if instance.name == plugin_name:
-                print (f"Found scanning plugin: {plugin_name}")
                 return plugin_class
         
         return None

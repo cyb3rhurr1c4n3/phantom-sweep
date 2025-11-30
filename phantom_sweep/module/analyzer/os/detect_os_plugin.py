@@ -15,12 +15,11 @@ warnings.filterwarnings('ignore')
 os.environ['JOBLIB_TEMP_FOLDER'] = '/tmp'
 logging.getLogger('sklearn').setLevel(logging.ERROR)
 
-
 class AIOSFingerprinter(AnalyzerBase):
     """AI-powered OS fingerprinting using Random Forest"""
     @property
     def name(self) -> str:
-        return "ai_os_fingerprinter"
+        return "ai"
     
     @property
     def description(self) -> str:
@@ -82,16 +81,15 @@ class AIOSFingerprinter(AnalyzerBase):
                 if context.debug:
                     print(f"  [!] Prediction error for {host}: {e}")
 
-
 class NormalOSFingerprinter(AnalyzerBase):
     """Normal OS Fingerprint"""
     @property
     def name(self) -> str:
-        return "normal_os_fingerprinter"
+        return "normal"
     
     @property
     def description(self) -> str:
-        return "Normal OS Fingerprint"
+        return "TTL/Window size-based OS detection"
     
     def __init__(self):
         self.os_scanner = None
@@ -136,4 +134,3 @@ class NormalOSFingerprinter(AnalyzerBase):
             except Exception as e:
                 if context.debug:
                     print(f"  [!] Scan error for {host}: {e}")
-        
