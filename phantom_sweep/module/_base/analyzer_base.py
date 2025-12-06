@@ -12,10 +12,12 @@ class AnalyzerBase(ABC):
     @abstractmethod
     def name(self) -> str:
         pass
+
     @property
     @abstractmethod
     def description(self) -> str:
         pass
+
     @property
     @abstractmethod
     def analyze(self, context: ScanContext, result: ScanResult):

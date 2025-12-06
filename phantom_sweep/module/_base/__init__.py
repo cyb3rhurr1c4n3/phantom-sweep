@@ -4,6 +4,6 @@ Base schema for writing plugin. Every plugin have to implement the abstract meth
 from phantom_sweep.module._base.scanner_base import ScannerBase
 from phantom_sweep.module._base.scripting_base import ScriptingBase
 from phantom_sweep.module._base.reporter_base import ReporterBase
+from phantom_sweep.module._base.scanner_base import ScannerBase
 
-__all__ = ['ScannerBase', 'ScriptingBase', 'ReporterBase']
-
+__all__ = ['ScannerBase', 'ScriptingBase', 'ReporterBase', 'ScannerBase']

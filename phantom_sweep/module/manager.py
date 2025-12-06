@@ -185,11 +185,11 @@ class Manager:
                 self._run_port_scanning(context, result)
             
             # Step 3: Service Detection (if enabled)
-            if context.pipeline.service_detection_mode != "off":
+            if context.pipeline.service_detection_mode != "none":
                 self._run_service_detection(context, result)
             
             # Step 4: OS Fingerprinting (if enabled)
-            if context.pipeline.os_fingerprinting_mode != "off":
+            if context.pipeline.os_fingerprinting_mode != "none":
                 self._run_os_fingerprinting(context, result)
             
             # Step 5: Scripts (if specified)

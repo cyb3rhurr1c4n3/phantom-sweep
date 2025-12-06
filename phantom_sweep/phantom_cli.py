@@ -34,7 +34,7 @@ class PhantomCLI:
     def __init__(self):
         self.parser = argparse.ArgumentParser(
             prog="phantom",
-            description="PhantomSweep - A fast, lightweight and scalable network security scanner",
+            description="PhantomSweep - A fast, lightweight, scalable and smart network security scanner",
             formatter_class=argparse.RawTextHelpFormatter,
             add_help=False
         )
@@ -62,6 +62,9 @@ class PhantomCLI:
         print("    It is the end user's responsibility to comply with all applicable laws.")
         print("    Developers assume no liability for misuse or damage caused by this tool.\n")
 
+        print(Fore.RED + "[!] Usage tips:" + Style.RESET_ALL)
+        print("    Always run PhantomSweep with sudo for accurate results.")
+
     def build_parser(self):
         """Build argument parser with all options"""
         parser = self.parser
@@ -88,10 +91,10 @@ class PhantomCLI:
             help="Show detailed examples"
         )
         
-        # Target Specification
+        # Host Specification
         target_group = parser.add_argument_group(
-            ':#################### TARGET SPECIFICATION ####################',
-            'Specify targets to scan. At least one target source is required.'
+            ':#################### HOST SPECIFICATION ####################',
+            'Specify hosts to scan. At least one host source is required.'
         )
         target_group.add_argument(
             "host",
@@ -159,7 +162,7 @@ class PhantomCLI:
         discovery_choices = self.manager.get_discovery_choices()
         discovery_helptext = "Host discovery technique (default: icmp):" + \
             self.manager.generate_help_text(self.manager.host_discovery_plugins) + \
-            "\n            - none: Skip discovery" 
+            "\n            - none: Skip discovery (assume all hosts are up)" 
         
         scan_group.add_argument(
             "--ping-tech",
@@ -184,23 +187,23 @@ class PhantomCLI:
 
         scan_group.add_argument(
             "--service-detection-mode",
-            choices=["ai", "normal", "off"],
-            default="off",
+            choices=["ai", "normal", "none"],
+            default="none",
             dest="service_detection_mode",
-            help="""Service detection mode (default: off):
+            help="""Service detection mode (default: none):
             - ai: AI-powered service and version detection
             - normal: Banner-based detection
-            - off: Disable service detection"""
+            - none: Disable service detection"""
         )
         scan_group.add_argument(
             "--os-fingerprinting-mode",
-            choices=["ai", "normal", "off"],
-            default="off",
+            choices=["ai", "normal", "none"],
+            default="none",
             dest="os_fingerprinting_mode",
-            help="""OS fingerprinting mode (default: off):
+            help="""OS fingerprinting mode (default: none):
             - ai: AI-powered OS detection
             - normal: TTL/Window size-based detection
-            - off: Disable OS fingerprinting"""
+            - none: Disable OS fingerprinting"""
         )
         
         script_choices = self.manager.get_script_choices()
@@ -471,11 +474,12 @@ class PhantomCLI:
             print(f"{Fore.CYAN}SCAN CONFIGURATION{Style.RESET_ALL}")
             print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
 
-            # Targets
+            print(f"{Fore.CYAN}==================== Targets Specification ===================={Style.RESET_ALL}\n")
+            # Hosts
             targets = context.targets.host
             if context.targets.host_list:
                 targets += [f"[from file: {context.targets.host_list}]"]
-            print(f"{Fore.YELLOW}Targets:{Style.RESET_ALL} {', '.join(targets) if targets else 'none'}")
+            print(f"{Fore.YELLOW}Hosts:{Style.RESET_ALL} {', '.join(targets) if targets else 'none'}")
             
             # Excluded hosts
             exclude_hosts = context.targets.exclude_host or []
@@ -491,6 +495,7 @@ class PhantomCLI:
             exclude_ports = context.ports.exclude_port or []
             print(f"{Fore.YELLOW}Excluded Ports:{Style.RESET_ALL} {', '.join(exclude_ports) if exclude_ports else 'none'}")
 
+            print(f"\n{Fore.CYAN}==================== Scan Pipeline ===================={Style.RESET_ALL}\n")
             # Pipeline
             print(f"{Fore.YELLOW}Ping Technique:{Style.RESET_ALL} {context.pipeline.ping_tech}")
             print(f"{Fore.YELLOW}Scan Technique:{Style.RESET_ALL} {context.pipeline.scan_tech}")
@@ -505,6 +510,7 @@ class PhantomCLI:
             scripts_str = ', '.join(context.pipeline.script) if context.pipeline.script else 'none'
             print(f"{Fore.YELLOW}Scripts:{Style.RESET_ALL} {scripts_str}")
 
+            print(f"\n{Fore.CYAN}==================== Performance and Evasion ===================={Style.RESET_ALL}\n")
             # Performance
             print(f"{Fore.YELLOW}Performance/Rate:{Style.RESET_ALL} {context.performance.rate}")
             print(f"{Fore.YELLOW}Threads:{Style.RESET_ALL} {context.performance.thread}")
@@ -513,10 +519,12 @@ class PhantomCLI:
             evasion_str = ', '.join(context.performance.evasion_mode) if context.performance.evasion_mode else 'none'
             print(f"{Fore.YELLOW}Evasion Mode:{Style.RESET_ALL} {evasion_str}")
 
+            print(f"\n{Fore.CYAN}==================== Output ===================={Style.RESET_ALL}\n")
             # Output
             print(f"{Fore.YELLOW}Output Format:{Style.RESET_ALL} {context.output.output_format}")
             print(f"{Fore.YELLOW}Output File:{Style.RESET_ALL} {context.output.output_filename or 'none'}")
 
+            print(f"\n{Fore.CYAN}==================== Miscellaneous ===================={Style.RESET_ALL}\n")
             # Global flags
             print(f"{Fore.YELLOW}Verbose:{Style.RESET_ALL} {context.verbose}")
             print(f"{Fore.YELLOW}Debug:{Style.RESET_ALL} {context.debug}")
