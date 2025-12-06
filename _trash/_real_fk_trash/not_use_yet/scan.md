@@ -1,1 +1,0 @@
-**Là nơi chứa các plugin về kiểu quét**

@@ -113,12 +113,12 @@ class ICMPScanner(ScannerBase):
             print(f"[DEBUG] ICMP sockets created")
 
         # Bước 3 - Bật receiver trước khi gửi packets
-        recv_task = asyncio.create_task(self.listening(recv_sock, set(hosts), context))
+        recv_task = asyncio.create_task(self._listening(recv_sock, set(hosts), context))
         await asyncio.sleep(0.01) # Chờ nó bật hẳn
 
         # Bước 4 - Gửi tất cả packet mà không chờ phản hồi
         start_time = time.time()
-        sent_count = await self.sending(send_sock, hosts, context)
+        sent_count = await self._sending(send_sock, hosts, context)
         send_duration = time.time() - start_time
 
         if context.debug:
@@ -126,12 +126,12 @@ class ICMPScanner(ScannerBase):
             print(f"[DEBUG] Sent {sent_count} ICMP packets in {send_duration:.3f}s ({pps:.0f} pps)")
 
         # Bước 5 - Đợi reply với chiến thuật timeout thông minh
-        timeout = self.calculate_smart_timeout(len(hosts), context)
+        timeout = self._calculate_smart_timeout(len(hosts), context)
         if context.debug:
             print(f"[DEBUG] ICMP timeout: {timeout:.1f}s")
 
         try:
-            await asyncio.wait_for(self.wait_for_completion(hosts, timeout), timeout=timeout)
+            await asyncio.wait_for(self._wait_for_completion(hosts, timeout), timeout=timeout)
         except asyncio.TimeoutError:
             pass
 
@@ -151,7 +151,7 @@ class ICMPScanner(ScannerBase):
             else:
                 result.add_host(host, state="down")
 
-    async def sending(self, sock: socket.socket, hosts: List[str], context) -> int:
+    async def _sending(self, sock: socket.socket, hosts: List[str], context) -> int:
         # Chuẩn bị dữ liệu
         packet_bytes = self.packet_template.to_bytes()
         sent_count = 0
@@ -178,7 +178,7 @@ class ICMPScanner(ScannerBase):
 
         return sent_count
     
-    async def listening(self, sock: socket.socket, expected_hosts: Set[str], context):
+    async def _listening(self, sock: socket.socket, expected_hosts: Set[str], context):
         loop = asyncio.get_event_loop()
         
         while True:
@@ -212,7 +212,7 @@ class ICMPScanner(ScannerBase):
                     print(f"[!] Receive error: {e}")
                 await asyncio.sleep(0.01)
     
-    async def wait_for_completion(self, hosts: List[str], max_timeout: float):
+    async def _wait_for_completion(self, hosts: List[str], max_timeout: float):
         """
         Đợi cho đến khi:
         1. Tìm được tất cả hosts, HOẶC
@@ -232,7 +232,7 @@ class ICMPScanner(ScannerBase):
             # Exponential backoff: check ít dần (hầu hết replies đến sớm)
             check_interval = min(check_interval * 1.3, max_interval)
     
-    def calculate_smart_timeout(self, num_hosts: int, context) -> float:
+    def _calculate_smart_timeout(self, num_hosts: int, context) -> float:
         """
         Tính timeout thông minh dựa trên:
         - Số lượng hosts

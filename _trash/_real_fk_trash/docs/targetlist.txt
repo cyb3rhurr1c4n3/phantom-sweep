@@ -1,2 +1,0 @@
-uit.edu.vn 
-scanme.nmap.org
