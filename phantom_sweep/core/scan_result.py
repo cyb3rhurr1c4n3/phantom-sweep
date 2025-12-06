@@ -23,7 +23,7 @@ class HostInfo:
     host: str
     state: str = "unknown"  # up, down, unknown
     os: Optional[str] = None
-    os_version: Optional[str] = None
+    os_version: Optional[str] = "unknown"
     os_accuracy: Optional[int] = None
     tcp_ports: Dict[int, PortInfo] = field(default_factory=dict)
     udp_ports: Dict[int, PortInfo] = field(default_factory=dict)
