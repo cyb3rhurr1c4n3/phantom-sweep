@@ -13,6 +13,16 @@ Xây dựng một công cụ quét mạng (network reconnaissance tool) **cực 
 ## phantom --help
 
 ```text
+usage: phantom [--version] [--help] [--example] [--host-list FILENAME] [--exclude-host HOST [HOST ...]] [--port PORT]
+               [--port-list FILENAME] [--exclude-port PORT [PORT ...]] [--ping-tech {arp,icmp,tcp,tcp-ping-scapy,none}]
+               [--scan-tech {connect,stealth,udp,none}] [--service-detection-mode {ai,normal,none}]
+               [--os-fingerprinting-mode {ai,normal,none}] [--script SCRIPT [SCRIPT ...]] [--rate {stealthy,balanced,fast,insane}]
+               [--thread NUM] [--timeout SECONDS] [--evasion-mode TECHNIQUE [TECHNIQUE ...]] [--output {csv,json,text,xml,none}]
+               [--output-file FILENAME] [--verbose] [--debug] [--all-ports]
+               [HOST ...]
+
+PhantomSweep - A fast, lightweight, scalable and smart network security scanner
+
 :#################### GENERAL ####################:
   Some general options
 
@@ -20,8 +30,8 @@ Xây dựng một công cụ quét mạng (network reconnaissance tool) **cực 
   --help                Show this help message and exit
   --example             Show detailed examples
 
-:#################### TARGET SPECIFICATION ####################:
-  Specify targets to scan. At least one target source is required.
+:#################### HOST SPECIFICATION ####################:
+  Specify hosts to scan. At least one host source is required.
 
   HOST                  Target host(s) to scan. Can be:
                                     - Single IP: 192.168.1.1
@@ -50,30 +60,29 @@ Xây dựng một công cụ quét mạng (network reconnaissance tool) **cực 
 :#################### SCAN PINELINE ####################:
   Configure which technique to use, which step is enable or disable, bla bla
 
-  --ping-tech {arp,icmp,tcp,none}
+  --ping-tech {arp,icmp,tcp,tcp-ping-scapy,none}
                         Host discovery technique (default: icmp):
-                                    - arp: ARP Discovery (LAN only)
+                                    - arp: ARP Scan (Ultra-fast, local network only)
                                     - icmp: ICMP Echo Request (Ping) Discovery
-                                    - icmp: ICMP Echo Request (Ping) Discovery - Scapy Fallback
-                                    - tcp: TCP SYN Ping to common ports (80, 443, 22, etc.)
-                                    - none: Skip discovery
-  --scan-tech {ai_os_fingerprinter,connect,stealth,udp,none}
+                                    - tcp-ping-scapy: TCP SYN Ping (Scapy-based, easier, slower)
+                                    - tcp: TCP SYN Ping Discovery (fast, firewall-friendly) - FIXED
+                                    - none: Skip discovery (assume all hosts are up)
+  --scan-tech {connect,stealth,udp,none}
                         Port scanning technique (default: connect):
-                                    - ai_os_fingerprinter: AI-powered OS detection using Random Forest
-                                    - connect: TCP Connect Scan (ultra-fast)
+                                    - connect: TCP Connect Scan (async, fast, service-compatible)
                                     - stealth: TCP SYN Scan (stealth scan, ultra-fast)
-                                    - udp: UDP Port Scan (ICMP-based)
+                                    - udp: UDP Scan (async, ICMP-aware, service probes)
                                     - none: Skip port scanning
-  --service-detection-mode {ai,normal,off}
-                        Service detection mode (default: off):
+  --service-detection-mode {ai,normal,none}
+                        Service detection mode (default: none):
                                     - ai: AI-powered service and version detection
                                     - normal: Banner-based detection
-                                    - off: Disable service detection
-  --os-fingerprinting-mode {ai,normal,off}
-                        OS fingerprinting mode (default: off):
+                                    - none: Disable service detection
+  --os-fingerprinting-mode {ai,normal,none}
+                        OS fingerprinting mode (default: none):
                                     - ai: AI-powered OS detection
                                     - normal: TTL/Window size-based detection
-                                    - off: Disable OS fingerprinting
+                                    - none: Disable OS fingerprinting
   --script SCRIPT [SCRIPT ...]
                         Run one or more extension scripts:
                                     - http_headers: Check HTTP headers for web services
@@ -96,12 +105,16 @@ Xây dựng một công cụ quét mạng (network reconnaissance tool) **cực 
                                     - fragment: Fragment packets
                                     - decoy: Use decoy IPs
                                     - spoof: Spoof source IP
+                                    - ai: AI-powered adaptive evasion
+                                    - none: No evasion (default)
+
 
 :#################### OUTPUT FORMAT ####################:
   Specify how your output should be format.
 
-  --output {json,text,xml,none}
+  --output {csv,json,text,xml,none}
                         Export to file format (default: none):
+                                    - csv: CSV format (spreadsheet-compatible)
                                     - json: JSON format (machine-readable)
                                     - text: Human-readable text format
                                     - xml: Nmap-compatible XML format
@@ -119,24 +132,14 @@ Xây dựng một công cụ quét mạng (network reconnaissance tool) **cực 
 
 ### Các tính năng
 
--   **Host discovery**:
-    -   Tối thiểu: ICMP Echo, TCP SYN/ACK ping, ARP scan. --> chưa hoàn thành và chưa tối ưu tốc độ
--   **Port scanning**:
-    -   Tối thiểu: TCP SYN, TCP Connect, UDP scan. --> chưa hoàn thành và chưa tối ưu tốc độ
--   **Service & version detection**:
-    -   Tối thiểu: normal mode (thu thập banner, phân tích dịch vụ phổ biến) --> đã hoàn thành
-    -   Nâng cao: ai mode (dùng AI để thực hiện tính năng này) --> chưa hoàn thành
--   **OS fingerprinting**:
-    -   Tối thiểu: normal mode (dựa trên TTL, Window Size, TCP/IP stack behavior) --> chưa hoàn thành
-    -   Nâng cao: ai mode (dùng AI để thực hiện tính năng này) --> đã hoàn thành
--   **Xuất kết quả đầu ra**:
-    -   Tối thiểu: Text , JSON cho máy móc xử lý --> Đã hoàn thành
-    -   Nâng cao: Nmap-XML, CSV --> Đã hoàn thành
--   **Plugin & Module & Dynamic Loading Architecture** (nâng cao): Tạo cơ chế cho phép viết thêm các plugin. Có 5 yếu tố có thể mở rộng (hoặc bổ sung) là: các kỹ thuật Host Discovery (1), các kỹ thuật Port Scanning (2), các định dạng xuất kết quả đầu ra (3), các custom script (4), độ thông minh của các tính năng AI (5). --> Đã hoàn thành
--   **Custom Script Running** (nâng cao): viết các script để chạy trên target (ví dụ http_headers_check,...) --> Đã hoàn thành
--   **Tùy chọn evasive** (nâng cao):
-    -   normal: randomize, fragment, decoy, spoof --> Chưa hoàn thành
-    -   ai: Evasion with AI --> Gần hoàn thành
+-   **Host discovery**: ICMP Echo, TCP SYN/ACK ping, ARP scan.
+-   **Port scanning**: TCP SYN, TCP Connect, UDP scan.
+-   **Service & version detection**: Normal mode.
+-   **OS fingerprinting**: AI mode.
+-   **Xuất kết quả đầu ra**: Text , JSON, Nmap-XML, CSV
+-   **Plugin & Module & Dynamic Loading Architecture**: Có 5 yếu tố có thể mở rộng (hoặc bổ sung) là: các kỹ thuật Host Discovery (1), các kỹ thuật Port Scanning (2), các định dạng xuất kết quả đầu ra (3), các custom script (4), độ thông minh của các tính năng AI (5).
+-   **Custom Script Running**: các script để chạy trên target (ví dụ http_headers_check,...)
+-   **Tùy chọn evasive**: Evasion with AI
 
 ### Tham vọng
 

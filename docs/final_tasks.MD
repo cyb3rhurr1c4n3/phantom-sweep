@@ -1,6 +1,6 @@
--   [ ] Hoàn thiện bài báo khoa học --> **Khôi**
--   [ ] Thực nghiệm và tìm số liệu cho bài báo khoa học --> **Khánh**
--   [ ] Làm video demo --> **Khôi & Khánh**
+-   [ ] Hoàn thiện bài báo khoa học
+-   [ ] Thực nghiệm và tìm số liệu cho bài báo khoa học
+-   [ ] Làm video demo
 -   [ ] Hoàn thiện UDP Scan
 -   [ ] Hoàn thiện TCP Ping
 -   [ ] Hoàn thiện TCP Syn (Stealth)
