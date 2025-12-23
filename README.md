@@ -298,6 +298,7 @@ sudo python phantom.py scanme.nmap.org
 <video width="1000" height="600" controls>
   <source src="resources/0_default_scan.mp4" type="video/mp4">
 </video>
+![](./resources/0_default_scan.mp4)
 
 #### **Example 2** — Fast Host Discovery (ICMP)
 
