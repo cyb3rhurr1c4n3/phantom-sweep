@@ -1,9 +1,5 @@
 # Làm sao PhantomSweep có thể nhanh đến vậy?
 
-Để đạt được tốc độ nhanh hơn Nmap ở mọi quy mô, chúng em đã áp dụng **15+ kỹ thuật optimization** ở mọi level: System, Network, Protocol, và Application. Dưới đây là code minh họa
-
----
-
 ## 📚 PHẦN 1: SYSTEM LEVEL OPTIMIZATIONS
 
 ### **1. Raw Socket - Bỏ qua tất cả abstraction layers**

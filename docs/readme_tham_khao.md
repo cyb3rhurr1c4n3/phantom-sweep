@@ -1,26 +1,13 @@
-Đây là một bước cực kỳ quan trọng. Một file `README.md` chuyên nghiệp không chỉ giúp giảng viên dễ chấm điểm mà còn định hình "thương hiệu" cho dự án của bạn trên GitHub.
-
-Dưới đây là một sườn (template) `README.md` được thiết kế chuẩn cho một đồ án công nghệ, làm nổi bật 4 tính chất **Fast - Lightweight - Scalable - Smart** mà nhóm bạn theo đuổi.
-
----
-
-# 📄 Gợi ý Sườn README.md cho PhantomSweep
-
-Bạn hãy copy nội dung bên dưới vào file `README.md`. Những chỗ trong ngoặc vuông `[...]` là chỗ bạn cần điền thông tin thực tế hoặc link ảnh/video của bạn vào.
-
----
-
-````markdown
 # 👻 PhantomSweep
 
 ### A Fast, Lightweight, Scalable & Smart Network Security Scanner
 
-![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+![Python Version](https://img.shields.io/badge/python-3.13.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-stable-brightgreen)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-orange)
 
-> **PhantomSweep** là công cụ quét mạng thế hệ mới, được thiết kế để kết hợp tốc độ của Masscan, tính linh hoạt của Nmap và sức mạnh của Trí tuệ Nhân tạo (AI). Dự án tập trung vào khả năng trinh sát mạng (network reconnaissance) tốc độ cao, khả năng mở rộng không giới hạn qua Plugin, và cơ chế tàng hình thông minh (AI Evasion).
+> **PhantomSweep** là công cụ quét mạng thế hệ mới, được thiết kế để kết hợp tốc độ của Masscan, tính linh hoạt của Nmap và sức mạnh của Trí tuệ Nhân tạo (AI). Dự án tập trung vào khả năng trinh sát mạng (network reconnaissance) tốc độ cao, khả năng mở rộng mạnh mẽ qua Plugin & Module Architecture, và các tính năng tích hợp AI như OS Fingerprinting with AI, Evasion with AI.
 
 ---
 
@@ -63,7 +50,7 @@ PhantomSweep được xây dựng dựa trên 4 trụ cột công nghệ:
 
 PhantomSweep yêu cầu Python 3.8+ và quyền Administrator/Root (để sử dụng Raw Socket).
 
-```bash
+````bash
 # 1. Clone repository
 git clone [https://github.com/username/PhantomSweep.git](https://github.com/username/PhantomSweep.git)
 cd PhantomSweep
@@ -73,9 +60,6 @@ pip install -r requirements.txt
 
 # 3. Cấp quyền thực thi (Linux/Mac)
 chmod +x phantom.py
-```
-````
-
 ---
 
 ## 📖 Hướng dẫn sử dụng
@@ -84,7 +68,7 @@ Cấu trúc lệnh cơ bản:
 
 ```bash
 python phantom.py [OPTIONS] --host <TARGET>
-```
+````
 
 ### 1\. Quét cơ bản (Nhanh & Hiệu quả)
 
@@ -187,19 +171,22 @@ Dự án này được phát hành dưới giấy phép **MIT License**.
 ## 💡 Mẹo để README trở nên "Xịn" hơn trong mắt Giảng viên
 
 1.  **Video Demo là "Vũ khí tối thượng":**
-    * Giảng viên thường lười chạy code. Hãy dùng phần mềm quay màn hình (như OBS), quay cảnh bạn gõ lệnh:
-        * Cảnh 1: Quét bình thường.
-        * Cảnh 2: Bật `--evasion-mode ai` và bypass được một cái rule Firewall đơn giản (hoặc ít nhất là show log thấy AI đang tự đổi timeout).
-    * Up lên YouTube (Unlisted) hoặc convert sang file GIF chất lượng cao và gắn vào đầu bài.
+
+    -   Giảng viên thường lười chạy code. Hãy dùng phần mềm quay màn hình (như OBS), quay cảnh bạn gõ lệnh:
+        -   Cảnh 1: Quét bình thường.
+        -   Cảnh 2: Bật `--evasion-mode ai` và bypass được một cái rule Firewall đơn giản (hoặc ít nhất là show log thấy AI đang tự đổi timeout).
+    -   Up lên YouTube (Unlisted) hoặc convert sang file GIF chất lượng cao và gắn vào đầu bài.
 
 2.  **Ảnh chụp màn hình (Screenshots):**
-    * Chụp lại output CLI khi quét xong.
-    * Nên dùng terminal có màu sắc (như Kali Linux terminal hoặc dùng thư viện `rich` để in màu) cho đẹp.
-    * Chụp cả file JSON report được sinh ra.
+
+    -   Chụp lại output CLI khi quét xong.
+    -   Nên dùng terminal có màu sắc (như Kali Linux terminal hoặc dùng thư viện `rich` để in màu) cho đẹp.
+    -   Chụp cả file JSON report được sinh ra.
 
 3.  **Cấu trúc thư mục:**
-    * Bạn có thể thêm một mục nhỏ hiển thị cấu trúc cây thư mục (dùng lệnh `tree`) để chứng minh kiến trúc Module của bạn là thật, không phải chém gió.
-    * Ví dụ:
+
+    -   Bạn có thể thêm một mục nhỏ hiển thị cấu trúc cây thư mục (dùng lệnh `tree`) để chứng minh kiến trúc Module của bạn là thật, không phải chém gió.
+    -   Ví dụ:
         ```text
         phantom_sweep/
         ├── core/
@@ -213,7 +200,11 @@ Dự án này được phát hành dưới giấy phép **MIT License**.
         ```
 
 4.  **Viết bằng tiếng Anh:**
-    * Đồ án công nghệ nên viết README bằng tiếng Anh để thể hiện tính chuyên nghiệp và sẵn sàng cho Open Source. (Bản mẫu trên tôi viết tiếng Việt để bạn dễ nắm ý, bạn có thể dịch sang Anh hoặc để song ngữ).
+    -   Đồ án công nghệ nên viết README bằng tiếng Anh để thể hiện tính chuyên nghiệp và sẵn sàng cho Open Source. (Bản mẫu trên tôi viết tiếng Việt để bạn dễ nắm ý, bạn có thể dịch sang Anh hoặc để song ngữ).
 
 Chúc bạn hoàn thiện "cú chốt" Github này thật rực rỡ!
+
+```
+
+```
 ````
