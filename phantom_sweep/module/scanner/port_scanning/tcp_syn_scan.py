@@ -117,4 +117,3 @@ class TCPSynScanner(ScannerBase):
         if context.verbose:
             total_open = sum(len(p) for p in open_ports.values())
             print(f"[*] Scan completed in {time.time()-start:.2f}s - {total_open} open ports")
-

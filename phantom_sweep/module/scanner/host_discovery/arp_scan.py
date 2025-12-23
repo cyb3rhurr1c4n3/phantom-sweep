@@ -1,279 +1,446 @@
 """
-ARP Scan Host Discovery - Windows-optimized with interface mapping
+ARP Scanner - Ultra-fast host discovery using ARP requests
+Optimized with techniques from ICMP Ping and TCP SYN Scan for maximum performance
 """
 import asyncio
+import socket
 import time
-import platform
-from typing import Set, Optional, Dict
-from scapy.all import (
-    Ether, ARP, AsyncSniffer, sendp, conf, 
-    get_if_hwaddr, get_if_list, get_working_if, IFACES
-)
-from phantom_sweep.core.scan_context import ScanContext
-from phantom_sweep.core.scan_result import ScanResult
+import struct
+from typing import Set, List, Dict, Tuple, Optional
+from dataclasses import dataclass
 from phantom_sweep.module._base import ScannerBase
 
-conf.verb = 0
+
+@dataclass
+class ARPPacket:
+    """ARP Request packet template for efficient reuse"""
+    # Hardware type (Ethernet = 1)
+    hw_type: int = 1
+    # Protocol type (IPv4 = 0x0800)
+    proto_type: int = 0x0800
+    # Hardware address length
+    hw_len: int = 6
+    # Protocol address length
+    proto_len: int = 4
+    # Operation (1 = Request, 2 = Reply)
+    operation: int = 1
+    # Sender MAC
+    sender_mac: bytes = b'\x00\x00\x00\x00\x00\x00'
+    # Sender IP
+    sender_ip: bytes = b'\x00\x00\x00\x00'
+    # Target MAC (broadcast for request)
+    target_mac: bytes = b'\xff\xff\xff\xff\xff\xff'
+    # Target IP (will be filled dynamically)
+    target_ip: bytes = b'\x00\x00\x00\x00'
+
+    def to_bytes(self) -> bytes:
+        """Convert ARP packet to bytes"""
+        packet = struct.pack('!HHBBH',
+                            self.hw_type,
+                            self.proto_type,
+                            self.hw_len,
+                            self.proto_len,
+                            self.operation)
+        packet += self.sender_mac
+        packet += self.sender_ip
+        packet += self.target_mac
+        packet += self.target_ip
+        return packet
+
+    @staticmethod
+    def create_for_ip(target_ip: str, sender_mac: bytes, sender_ip: str) -> bytes:
+        """Create ARP request packet for specific target IP"""
+        packet = struct.pack('!HHBBH',
+                            1,              # Ethernet
+                            0x0800,         # IPv4
+                            6,              # MAC length
+                            4,              # IP length
+                            1)              # Request
+        packet += sender_mac
+        packet += socket.inet_aton(sender_ip)
+        packet += b'\xff\xff\xff\xff\xff\xff'  # Target MAC (broadcast)
+        packet += socket.inet_aton(target_ip)
+        return packet
 
 
 class ARPScanner(ScannerBase):
-    """ARP Discovery - Fast LAN host discovery (Windows-optimized)"""
-    
+    """Ultra-fast ARP-based host discovery scanner"""
+
     @property
     def name(self) -> str:
         return "arp"
-    
+
     @property
     def type(self) -> str:
         return "host_discovery"
-    
+
     @property
     def description(self) -> str:
-        return "ARP Discovery (LAN only)"
-    
+        return "ARP Scan (Ultra-fast, local network only)"
+
     def requires_root(self) -> bool:
         return True
-    
-    def scan(self, context: ScanContext, result: ScanResult) -> None:
-        """Perform ARP discovery scan"""
+
+    def __init__(self):
+        self.discovered: Set[str] = set()
+        # Cache for optimizing performance
+        self.local_ip: Optional[str] = None
+        self.gateway: Optional[str] = None
+        self.iface: Optional[str] = None
+
+    def scan(self, context, result) -> None:
+        """
+        Entry point for ARP scan
+        Performs ARP requests to discover active hosts on local network
+        """
         hosts = context.targets.host
         if not hosts:
             return
-        
-        print(f"[DEBUG] Targets to scan: {hosts}")
-        
-        if context.verbose:
-            print(f"[*] Starting ARP discovery on {len(hosts)} hosts...")
-        
+
+        self.discovered.clear()
+
         try:
             asyncio.run(self._async_scan(context, result, hosts))
-        except Exception as e:
-            print(f"[!] ARP scan EXCEPTION: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def _get_interface_map(self) -> Dict[str, str]:
-        """Map NPF device names to friendly names on Windows"""
-        iface_map = {}
-        
-        try:
-            # IFACES contains the mapping
-            for iface_name, iface_obj in IFACES.items():
-                # Get friendly name
-                friendly = getattr(iface_obj, 'description', None) or \
-                          getattr(iface_obj, 'name', None) or \
-                          iface_name
-                
-                # Get MAC
-                try:
-                    mac = get_if_hwaddr(iface_name)
-                except:
-                    mac = "unknown"
-                
-                iface_map[iface_name] = {
-                    'friendly': friendly,
-                    'mac': mac,
-                    'name': iface_name
-                }
-        except Exception as e:
-            print(f"[DEBUG] Interface mapping error: {e}")
-        
-        return iface_map
-    
-    def _select_best_interface(self, context: ScanContext) -> Optional[str]:
-        """Select the best network interface for ARP scanning"""
-        print(f"[DEBUG] === INTERFACE SELECTION ===")
-        
-        # Get interface mapping
-        iface_map = self._get_interface_map()
-        
-        print(f"[DEBUG] Interface mapping:")
-        for npf_name, info in iface_map.items():
-            print(f"[DEBUG]   {info['friendly']}")
-            print(f"[DEBUG]     Device: {npf_name}")
-            print(f"[DEBUG]     MAC: {info['mac']}")
-        
-        # Get your WiFi MAC from ipconfig (f8:fb:2f:c6:68:4f)
-        target_mac = "f8:fb:2f:c6:68:4f"
-        
-        # Priority 1: Match exact MAC (your WiFi)
-        for npf_name, info in iface_map.items():
-            if info['mac'].lower() == target_mac.lower():
-                print(f"[DEBUG] ✅ Found WiFi by MAC: {info['friendly']}")
-                return npf_name
-        
-        # Priority 2: Look for WiFi/Wireless in description
-        for npf_name, info in iface_map.items():
-            friendly_lower = info['friendly'].lower()
-            if any(keyword in friendly_lower for keyword in ['wi-fi', 'wireless', '802.11', 'wlan']):
-                mac = info['mac']
-                if mac != "00:00:00:00:00:00":
-                    print(f"[DEBUG] ✅ Found WiFi by name: {info['friendly']} (MAC: {mac})")
-                    return npf_name
-        
-        # Priority 3: Exclude known virtual adapters
-        virtual_keywords = ['hyper-v', 'vethernet', 'virtual', 'vmware', 'virtualbox', 'loopback', 'bluetooth']
-        
-        for npf_name, info in iface_map.items():
-            friendly_lower = info['friendly'].lower()
-            mac = info['mac']
-            
-            # Skip virtual and zero MACs
-            if mac == "00:00:00:00:00:00":
-                continue
-            
-            if any(keyword in friendly_lower for keyword in virtual_keywords):
-                print(f"[DEBUG] ⏭️  Skipping virtual adapter: {info['friendly']}")
-                continue
-            
-            # Look for Ethernet
-            if 'ethernet' in friendly_lower:
-                print(f"[DEBUG] ✅ Found Ethernet: {info['friendly']} (MAC: {mac})")
-                return npf_name
-        
-        # Priority 4: Any interface with valid MAC (not virtual)
-        for npf_name, info in iface_map.items():
-            mac = info['mac']
-            friendly_lower = info['friendly'].lower()
-            
-            if mac == "00:00:00:00:00:00":
-                continue
-            
-            # Skip Hyper-V MACs (00:15:5d:xx:xx:xx)
-            if mac.startswith("00:15:5d"):
-                print(f"[DEBUG] ⏭️  Skipping Hyper-V adapter: {info['friendly']}")
-                continue
-            
-            # Skip VirtualBox MACs (0a:00:27:xx:xx:xx)
-            if mac.startswith("0a:00:27"):
-                print(f"[DEBUG] ⏭️  Skipping VirtualBox adapter: {info['friendly']}")
-                continue
-            
-            if not any(keyword in friendly_lower for keyword in virtual_keywords):
-                print(f"[DEBUG] ⚠️  Using fallback interface: {info['friendly']} (MAC: {mac})")
-                return npf_name
-        
-        # Priority 5: Use get_working_if() as last resort
-        try:
-            working = get_working_if()
-            print(f"[DEBUG] ⚠️  Using get_working_if(): {working}")
-            return working
-        except:
-            pass
-        
-        print(f"[DEBUG] ❌ No suitable interface found!")
-        return None
-    
-    async def _async_scan(self, context: ScanContext, result: ScanResult, hosts: list):
-        """Fire all ARP requests with extensive debugging"""
-        print(f"[DEBUG] === STARTING ARP SCAN ===")
-        discovered: Set[str] = set()
-        hosts_set = set(hosts)
-        mac_cache = {}
-        
-        # Select interface
-        iface = self._select_best_interface(context)
-        
-        if not iface:
-            print(f"[!] ERROR: Could not find suitable network interface!")
+        except PermissionError:
+            print("[!] ARP scan requires root/admin privileges!!!")
+            print("[!] Run with: sudo python phantomsweep.py")
             return
-        
-        print(f"[DEBUG] Using interface: {iface}")
-        
-        # Verify interface
-        try:
-            local_mac = get_if_hwaddr(iface)
-            print(f"[DEBUG] Local MAC address: {local_mac}")
         except Exception as e:
-            print(f"[!] ERROR: Cannot get MAC for interface: {e}")
-            return
-        
-        # BPF filter
-        bpf_filter = "arp and arp[6:2] == 2"
-        print(f"[DEBUG] BPF filter: {bpf_filter}")
-        
-        # Packet handler
-        packet_count = [0]
-        
-        def handle_packet(pkt):
-            packet_count[0] += 1
-            
-            try:
-                if pkt.haslayer(ARP):
-                    psrc = pkt[ARP].psrc
-                    hwsrc = pkt[ARP].hwsrc
-                    
-                    print(f"[DEBUG] ARP Reply: {psrc} is at {hwsrc}")
-                    
-                    if psrc in hosts_set:
-                        if psrc not in discovered:
-                            discovered.add(psrc)
-                            mac_cache[psrc] = hwsrc
-                            result.add_host(psrc, state="up")
-                            print(f"  [+] {psrc} is up ({hwsrc})")
-            except Exception as e:
-                print(f"[DEBUG] Packet handler error: {e}")
-        
-        # Start sniffer
-        print(f"[DEBUG] Starting sniffer...")
+            if context.debug:
+                print(f"[!] ARP Scan error: {e}")
+                import traceback
+                traceback.print_exc()
+
+    # ========== Async Scan Logic ==========
+
+    async def _async_scan(self, context, result, hosts: List[str]):
+        """
+        Main async ARP scan logic with 3-phase approach:
+        1. Initialization (get interface info)
+        2. Send all ARP requests at maximum rate (no waiting)
+        3. Listen for ARP replies with smart timeout
+        """
+        # Phase 1: Initialization
         try:
-            sniffer = AsyncSniffer(
-                filter=bpf_filter,
-                prn=handle_packet,
-                store=False,
-                iface=iface
+            self.local_ip, self.gateway, self.iface = await self._get_interface_info()
+            if context.debug:
+                print(f"[DEBUG] ARP: Local IP={self.local_ip}, Gateway={self.gateway}, Interface={self.iface}")
+        except Exception as e:
+            if context.debug:
+                print(f"[!] Failed to get interface info: {e}")
+            return
+
+        # Phase 2: Create raw socket for ARP
+        try:
+            # Create ARP socket (SOCK_PACKET for raw ARP frames)
+            send_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))  # 3 = ARPHRD_ETHER
+            recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
+
+            # Bind to interface
+            send_sock.bind((self.iface, 0))
+            recv_sock.bind((self.iface, 0))
+
+            # Optimize receive buffer (Technique from ICMP: maximize packet buffer)
+            recv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2**20)  # 1MB
+            recv_sock.setblocking(False)
+
+            if context.debug:
+                print(f"[DEBUG] ARP sockets created and bound to {self.iface}")
+
+        except Exception as e:
+            if context.debug:
+                print(f"[!] Failed to create ARP sockets: {e}")
+            return
+
+        # Phase 3: Get local MAC address
+        try:
+            local_mac = self._get_mac_address(self.iface)
+            if context.debug:
+                print(f"[DEBUG] Local MAC: {local_mac.hex()}")
+        except Exception as e:
+            if context.debug:
+                print(f"[!] Failed to get MAC address: {e}")
+            return
+
+        # Phase 4: Start receiver before sending (Technique from ICMP)
+        recv_task = asyncio.create_task(
+            self._listening(recv_sock, set(hosts), context, self.iface)
+        )
+        await asyncio.sleep(0.01)  # Wait for receiver to start
+
+        # Phase 5: Send all ARP requests at maximum rate (Technique from TCP SYN)
+        start_time = time.time()
+        sent_count = await self._send_arp_requests(
+            send_sock, hosts, self.local_ip, local_mac, context
+        )
+        send_duration = time.time() - start_time
+
+        if context.debug:
+            pps = sent_count / send_duration if send_duration > 0 else 0
+            print(f"[DEBUG] Sent {sent_count} ARP requests in {send_duration:.3f}s ({pps:.0f} pps)")
+
+        # Phase 6: Wait for replies with smart timeout (Technique from ICMP)
+        timeout = self._calculate_smart_timeout(len(hosts), context)
+        if context.debug:
+            print(f"[DEBUG] ARP timeout: {timeout:.1f}s")
+
+        try:
+            await asyncio.wait_for(
+                self._wait_for_completion(hosts, timeout),
+                timeout=timeout
             )
-            sniffer.start()
-            await asyncio.sleep(0.2)
-            print(f"[DEBUG] Sniffer started")
-        except Exception as e:
-            print(f"[!] ERROR: Failed to start sniffer: {e}")
-            import traceback
-            traceback.print_exc()
-            return
-        
-        # Build and send packets
-        print(f"[DEBUG] Building packets...")
-        packets = []
-        for host in hosts:
-            pkt = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(op="who-has", pdst=host)
-            packets.append(pkt)
-        
-        print(f"[DEBUG] Sending {len(packets)} ARP requests...")
-        for i, pkt in enumerate(packets):
-            try:
-                sendp(pkt, iface=iface, verbose=0)
-                print(f"[DEBUG] Sent packet {i+1}/{len(packets)}")
-                await asyncio.sleep(0.05)
-            except Exception as e:
-                print(f"[DEBUG] Send error: {e}")
-        
-        # Wait for responses
-        print(f"[DEBUG] Waiting for responses...")
-        timeout = 3.0
-        start_wait = time.time()
-        
-        while (time.time() - start_wait) < timeout:
-            await asyncio.sleep(0.3)
-            print(f"[DEBUG] Discovered: {len(discovered)}/{len(hosts)} (packets received: {packet_count[0]})")
-            
-            if len(discovered) == len(hosts):
-                break
-        
-        # Stop sniffer
-        try:
-            sniffer.stop()
-        except:
+        except asyncio.TimeoutError:
             pass
-        
-        print(f"[DEBUG] === SCAN COMPLETE ===")
-        print(f"[DEBUG] Packets received: {packet_count[0]}")
-        print(f"[DEBUG] Hosts discovered: {len(discovered)}/{len(hosts)}")
-        
-        if context.verbose:
-            print(f"[*] ARP scan completed: {len(discovered)}/{len(hosts)} hosts up")
-        
-        # Mark undiscovered as down
+
+        # Phase 7: Cleanup
+        recv_task.cancel()
+        try:
+            await recv_task
+        except asyncio.CancelledError:
+            pass
+
+        send_sock.close()
+        recv_sock.close()
+
+        # Phase 8: Update results
         for host in hosts:
-            if host not in discovered:
+            if host in self.discovered:
+                result.add_host(host, state="up")
+            else:
                 result.add_host(host, state="down")
+
+    # ========== Utilities ==========
+
+    async def _send_arp_requests(self, sock: socket.socket, hosts: List[str],
+                                  local_ip: str, local_mac: bytes, context) -> int:
+        """
+        Send all ARP requests at maximum rate using batching
+        Technique from TCP SYN Scan: batch sending for ultra-fast rate
+        """
+        sent_count = 0
+        pps = 1000  # Packets per second (tunable)
+        batch_size = min(100, max(10, pps // 10))  # 10-100 packets per batch
+
+        if context.debug:
+            print(f"[DEBUG] ARP rate: {pps} pps, batch: {batch_size}")
+
+        # Ethernet header for ARP
+        ethernet_header = self._create_ethernet_header(b'\xff\xff\xff\xff\xff\xff', local_mac)
+
+        # Pre-build ARP packet template
+        arp_template = struct.pack('!HHBBH',
+                                   1,          # Ethernet
+                                   0x0800,     # IPv4
+                                   6,          # MAC len
+                                   4,          # IP len
+                                   1)          # Request
+
+        arp_base = (arp_template +
+                   local_mac +
+                   socket.inet_aton(local_ip) +
+                   b'\xff\xff\xff\xff\xff\xff')  # Broadcast MAC
+
+        # Send requests in batches
+        for i in range(0, len(hosts), batch_size):
+            batch = hosts[i : i + batch_size]
+            for host in batch:
+                try:
+                    # Build full packet: Ethernet + ARP
+                    arp_packet = arp_base + socket.inet_aton(host)
+                    full_packet = ethernet_header + arp_packet
+                    sock.send(full_packet)
+                    sent_count += 1
+                except Exception as e:
+                    if context.debug:
+                        print(f"\t[!] Failed to send ARP to {host}: {e}")
+
+            # Rate limiting: sleep to maintain desired PPS
+            if i + batch_size < len(hosts):
+                sleep_time = batch_size / pps
+                await asyncio.sleep(sleep_time)
+
+        return sent_count
+
+    async def _listening(self, sock: socket.socket, expected_hosts: Set[str], 
+                        context, iface: str):
+        """
+        Listen for ARP replies (Type 2)
+        Non-blocking async receiver with efficient buffering (Technique from ICMP)
+        """
+        loop = asyncio.get_event_loop()
+
+        while True:
+            try:
+                # Non-blocking receive
+                data, addr = await loop.sock_recvfrom(sock, 1024)
+
+                # ARP reply structure (after 14-byte Ethernet header):
+                # 0-1: Hardware type
+                # 2-3: Protocol type
+                # 4: Hardware size
+                # 5: Protocol size
+                # 6-7: Operation (2 = Reply)
+                # 8-13: Sender hardware address (MAC)
+                # 14-17: Sender IP address
+                # 18-23: Target hardware address
+                # 24-27: Target IP address
+
+                if len(data) >= 28:  # 14 (Eth) + 14 (ARP header)
+                    # Skip Ethernet header (14 bytes)
+                    arp_data = data[14:]
+
+                    if len(arp_data) >= 28:
+                        # Check operation code (bytes 6-7)
+                        operation = struct.unpack('!H', arp_data[6:8])[0]
+
+                        # ARP Reply = 2
+                        if operation == 2:
+                            # Extract sender IP (bytes 14-17 of ARP)
+                            sender_ip = socket.inet_ntoa(arp_data[14:18])
+
+                            if sender_ip in expected_hosts and sender_ip not in self.discovered:
+                                self.discovered.add(sender_ip)
+                                if context.verbose:
+                                    # Extract sender MAC (bytes 8-13 of ARP)
+                                    sender_mac = arp_data[8:14].hex(':')
+                                    print(f"\t[+] Host {sender_ip} is up ({sender_mac})")
+                        elif context.debug and operation not in [1]:  # Not a request
+                            pass  # Ignore other operations
+
+            except BlockingIOError:
+                # No data available
+                await asyncio.sleep(0.01)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                if context.debug:
+                    print(f"[!] Receive error: {e}")
+                await asyncio.sleep(0.01)
+
+    async def _wait_for_completion(self, hosts: List[str], max_timeout: float):
+        """
+        Wait for completion with exponential backoff
+        Technique from ICMP: reduce CPU usage by increasing check interval over time
+        """
+        start_time = time.time()
+        check_interval = 0.02  # Start checking every 20ms
+        max_interval = 0.5     # Max check interval 500ms
+
+        while (time.time() - start_time) < max_timeout:
+            # Early exit if all hosts found
+            if len(self.discovered) >= len(hosts):
+                return
+
+            await asyncio.sleep(check_interval)
+
+            # Exponential backoff: check less frequently over time
+            # Most replies come quickly, so gradually reduce frequency
+            check_interval = min(check_interval * 1.3, max_interval)
+
+    # ========== Helper Functions ==========
+
+    @staticmethod
+    def _create_ethernet_header(dest_mac: bytes, src_mac: bytes, ether_type: int = 0x0806) -> bytes:
+        """Create Ethernet II header for ARP frames"""
+        return dest_mac + src_mac + struct.pack('!H', ether_type)
+
+    @staticmethod
+    def _get_mac_address(iface: str) -> bytes:
+        """
+        Get MAC address of interface
+        Uses socket approach instead of reading /sys files for portability
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # Get hardware address
+            import fcntl
+            info = fcntl.ioctl(
+                sock.fileno(),
+                0x8927,  # SIOCGIFHWADDR
+                struct.pack('256s', iface.encode('utf-8')[:15])
+            )
+            mac = info[18:24]
+            return mac
+        finally:
+            sock.close()
+
+    @staticmethod
+    async def _get_interface_info() -> Tuple[str, str, str]:
+        """
+        Get local IP, gateway, and interface information
+        Uses async subprocess for non-blocking network queries
+        """
+        import subprocess
+
+        # Get default gateway and interface
+        try:
+            result = subprocess.run(
+                ['ip', 'route', 'show'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            for line in result.stdout.split('\n'):
+                if 'default via' in line:
+                    parts = line.split()
+                    gateway = parts[2]
+                    iface = parts[4]
+
+                    # Get local IP on this interface
+                    result2 = subprocess.run(
+                        ['ip', 'addr', 'show', iface],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    for line2 in result2.stdout.split('\n'):
+                        if 'inet ' in line2:
+                            local_ip = line2.split()[1].split('/')[0]
+                            return local_ip, gateway, iface
+
+        except Exception:
+            pass
+
+        # Fallback: try to detect from /proc
+        try:
+            with open('/proc/net/route', 'r') as f:
+                for line in f:
+                    parts = line.split()
+                    if parts[1] == '00000000':  # Default route
+                        iface = parts[0]
+                        gateway_hex = parts[2]
+                        gateway = '.'.join(str(int(gateway_hex[i:i+2], 16)) for i in (6, 4, 2, 0))
+
+                        result = subprocess.run(
+                            ['ip', 'addr', 'show', iface],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        for line2 in result.stdout.split('\n'):
+                            if 'inet ' in line2:
+                                local_ip = line2.split()[1].split('/')[0]
+                                return local_ip, gateway, iface
+        except Exception:
+            pass
+
+        raise RuntimeError("Could not determine network interface information")
+
+    def _calculate_smart_timeout(self, num_hosts: int, context) -> float:
+        """
+        Calculate smart timeout based on number of hosts
+        Technique from ICMP: tune timeout formula for different scan sizes
+        """
+        base = getattr(context.performance.timeout, 'timeout', 3.0)
+
+        # Formula tuned for ARP (local network, very fast):
+        # - ARP is local-only, so typically much faster than ICMP
+        # - Most replies come within 100ms
+        if num_hosts <= 100:
+            timeout = base + 0.2
+        elif num_hosts <= 1000:
+            timeout = base + 0.5 + ((num_hosts - 100) / 1000.0) * 1.0
+        else:
+            timeout = base + 1.5
+
+        return max(1.0, min(10.0, timeout))

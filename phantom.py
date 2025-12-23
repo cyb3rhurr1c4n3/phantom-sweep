@@ -1,4 +1,3 @@
-
 """
 PhantomSweep - Entry point
 """
