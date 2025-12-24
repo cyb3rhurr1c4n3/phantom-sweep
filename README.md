@@ -295,10 +295,7 @@ sudo python phantom.py --help
 sudo python phantom.py scanme.nmap.org
 ```
 
-<video width="1000" height="600" controls>
-  <source src="resources/0_default_scan.mp4" type="video/mp4">
-</video>
-![](./resources/0_default_scan.mp4)
+https://github.com/user-attachments/assets/2ec2c472-d950-4543-bf2d-ee6849650f4c
 
 #### **Example 2** — Fast Host Discovery (ICMP)
 
@@ -336,17 +333,109 @@ https://github.com/user-attachments/assets/3f4810c6-a1e9-44bd-92ad-394ba4edd107
 sudo python phantom.py scanme.nmap.org --os-fingerprinting-mode ai
 ```
 
+https://github.com/user-attachments/assets/1034ef43-259e-4017-ab64-97f24944afbf
+
 #### **Example 7** — Custom Extension Scripts
 
 ```bash
 sudo python phantom.py scanme.nmap.org --script http_headers
 ```
 
+https://github.com/user-attachments/assets/b34d8442-73fb-45f9-a10d-5a0def2f95cf
+
 #### **Example 8** — Xuất Kết Quả Ra File
 
 ```bash
 sudo python phantom.py scanme.nmap.org --output json --output-file json_result
 sudo python phantom.py scanme.nmap.org --output csv --output-file csv_result
+```
+
+JSON output example:
+
+```json
+{
+  "hosts": {
+    "45.33.32.156": {
+      "host": "45.33.32.156",
+      "state": "up",
+      "os": null,
+      "os_version": "unknown",
+      "os_accuracy": null,
+      "tcp_ports": {
+        "26": {
+          "port": 26,
+          "state": "closed",
+          "service": null,
+          "version": null,
+          "banner": null
+        },
+        "99": {
+          "port": 99,
+          "state": "closed",
+          "service": null,
+          "version": null,
+          "banner": null
+        },
+        "8002": {
+          "port": 8002,
+          "state": "closed",
+          "service": null,
+          "version": null,
+          "banner": null
+        }
+      },
+      "udp_ports": {},
+      "scripts": {}
+    }
+  },
+  "statistics": {
+    "total_hosts": 1,
+    "up_hosts": 1,
+    "total_ports_scanned": 1000,
+    "open_ports": 4
+  },
+  "metadata": {
+    "scan_start_time": "2025-12-24T12:08:55.171810",
+    "scan_end_time": "2025-12-24T12:08:56.615795",
+    "scan_duration": 1.443985,
+    "scan_config": {
+      "targets": {
+        "hosts": [
+          "45.33.32.156"
+        ],
+        "host_count": 1,
+        "exclude_hosts": []
+      },
+      "ports": {
+        "port_spec": "top_1000",
+        "port_list_file": null,
+        "exclude_ports": null
+      },
+      "pipeline": {
+        "ping_tech": "icmp",
+        "scan_tech": "connect",
+        "service_detection_mode": "none",
+        "os_fingerprinting_mode": "none",
+        "scripts": []
+      },
+      "performance": {
+        "rate": "balanced",
+        "thread": 50,
+        "timeout": 1.0,
+        "evasion_mode": []
+      }
+    }
+  }
+}
+```
+
+CSV output example:
+
+```
+45.33.32.156,up,,unknown,,80,TCP,open,,,
+,,,,,22,TCP,open,,,
+,,,,,31337,TCP,open,,,
+,,,,,9929,TCP,open,,,
 ```
 
 #### **Example 9** — AI Evasion Techniques
