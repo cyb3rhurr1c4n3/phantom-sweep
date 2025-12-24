@@ -311,6 +311,8 @@ https://github.com/user-attachments/assets/66e971e4-6476-4a05-9153-8769d47ef727
 sudo python phantom.py scanme.nmap.org --ping-tech arp --scan-tech none
 ```
 
+https://github.com/user-attachments/assets/0f40fc89-9552-472c-b7f1-3c38f48eecb9
+
 #### **Example 4** — Quét 100 Port Phổ Biến Nhất
 
 ```bash
