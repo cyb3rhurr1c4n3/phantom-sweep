@@ -306,6 +306,8 @@ sudo python phantom.py scanme.nmap.org
 sudo python phantom.py scanme.nmap.org --ping-tech icmp --scan-tech none
 ```
 
+https://github.com/user-attachments/assets/66e971e4-6476-4a05-9153-8769d47ef727
+
 #### **Example 3** — Fast Host Discovery (ARP)
 
 ```bash
@@ -315,14 +317,18 @@ sudo python phantom.py scanme.nmap.org --ping-tech arp --scan-tech none
 #### **Example 4** — Quét 100 Port Phổ Biến Nhất
 
 ```bash
-sudo python phantom.py scanme.nmap.org --port top_100
+sudo python phantom.py scanme.nmap.org --port top_100  
 ```
+
+https://github.com/user-attachments/assets/59be7b48-7e0c-4bab-b0f3-4ff6f9942bb7
 
 #### **Example 5** — Service & Version Detection
 
 ```bash
 sudo python phantom.py scanme.nmap.org --service-detection-mode normal
 ```
+
+https://github.com/user-attachments/assets/3f4810c6-a1e9-44bd-92ad-394ba4edd107
 
 #### **Example 6** — AI OS Fingerprinting
 
