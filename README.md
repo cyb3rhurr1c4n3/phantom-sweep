@@ -295,7 +295,7 @@ sudo python phantom.py --help
 sudo python phantom.py scanme.nmap.org
 ```
 
-https://github.com/user-attachments/assets/2ec2c472-d950-4543-bf2d-ee6849650f4c
+https://github.com/user-attachments/assets/2398e2c1-0fe3-4b56-b36e-a16edad448ba
 
 #### **Example 2** — Fast Host Discovery (ICMP)
 
@@ -341,7 +341,7 @@ https://github.com/user-attachments/assets/1034ef43-259e-4017-ab64-97f24944afbf
 sudo python phantom.py scanme.nmap.org --script http_headers
 ```
 
-https://github.com/user-attachments/assets/b34d8442-73fb-45f9-a10d-5a0def2f95cf
+https://github.com/user-attachments/assets/bfbad2f6-3f2e-4d5d-8101-9d2be1b8a368
 
 #### **Example 8** — Xuất Kết Quả Ra File
 
@@ -350,7 +350,7 @@ sudo python phantom.py scanme.nmap.org --output json --output-file json_result
 sudo python phantom.py scanme.nmap.org --output csv --output-file csv_result
 ```
 
-JSON output example:
+Đầu ra JSON ví dụ:
 
 ```json
 {
@@ -429,7 +429,7 @@ JSON output example:
 }
 ```
 
-CSV output example:
+Đầu ra CSV ví dụ:
 
 ```
 45.33.32.156,up,,unknown,,80,TCP,open,,,
