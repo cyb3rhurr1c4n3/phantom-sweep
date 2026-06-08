@@ -1,3 +1,6 @@
+_resources/video
+_trash/
+
 # python
 **/__pycache__/
 __pycache__/

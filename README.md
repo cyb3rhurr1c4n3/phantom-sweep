@@ -22,6 +22,34 @@ The project was built as an exercise in understanding low-level network scanning
 
 ---
 
+## 📽️ Demo
+
+### 1. Scan with default options
+
+[![1 - Scan with default options](https://img.youtube.com/vi/MlOuMnwanFk/0.jpg)](https://youtu.be/MlOuMnwanFk)
+
+### 2. Fast Host Discovery with ICMP
+
+[![2 - Fast Host Discovery with ICMP](https://img.youtube.com/vi/FfvUZ23XMDk/0.jpg)](https://youtu.be/FfvUZ23XMDk)
+
+### 3. Fast Host Discovery with ARP
+
+[![3 - Fast Host Discovery with ARP](https://img.youtube.com/vi/A0-Q_FAZ6YU/0.jpg)](https://youtu.be/A0-Q_FAZ6YU)
+
+### 4. Scan with top 100 ports
+
+[![4 - Scan with top 100 ports](https://img.youtube.com/vi/KD0ZVbn_OiI/0.jpg)](https://youtu.be/KD0ZVbn_OiI)
+
+### 5. AI-powered OS Fingerprinting feature
+
+[![5 - AI-powered OS Fingerprinting feature](https://img.youtube.com/vi/9t9Vw3xWcO8/0.jpg)](https://youtu.be/9t9Vw3xWcO8)
+
+### 6. Scanning with Custom Extension Scripts
+
+[![6 - Scanning with Custom Extension Scripts](https://img.youtube.com/vi/xUTByvm7PZY/0.jpg)](https://youtu.be/xUTByvm7PZY)
+
+---
+
 ## ✨ Features
 
 ### Host Discovery
