@@ -4,782 +4,286 @@
 
 ### _A Fast, Lightweight, Scalable & Intelligent Network Security Scanner_
 
-[![Python Version](https://img.shields.io/badge/python-3.13.9+-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/status-stable-brightgreen?style=for-the-badge)](https://github.com/cyb3rhurr1c4n3/phantom-sweep)
+[![Python Version](https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/) [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](https://claude.ai/chat/LICENSE) [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20WSL2-lightgrey?style=for-the-badge)](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff) [![Status](https://img.shields.io/badge/status-v1.0-brightgreen?style=for-the-badge)](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff)
 
-**[Features](#-các-tính-năng)** •
-**[Installation](#-yêu-cầu--cài-đặt)** •
-**[Usage](#-hướng-dẫn-sử-dụng)** •
-**[Architecture](#-kiến-trúc-hệ-thống)** •
-**[Team](#-thành-viên-dự-án)**
+**[Overview](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff#-overview)** • **[Features](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff#-features)** • **[Installation](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff#-installation)** • **[Usage](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff#-usage)** • **[Architecture](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff#-architecture)** • **[Roadmap](https://claude.ai/chat/44b2cf66-527e-4f9b-9774-3351324defff#-roadmap)**
 
 </div>
 
 ---
 
-## 📋 Tổng quan
+## 📋 Overview
 
-> **PhantomSweep** là một công cụ quét mạng (network security scanner) được thiết kế cho mục đích **giáo dục** và **kiểm thử bảo mật hợp pháp** (authorized penetration testing). Dự án kết hợp hiệu suất cao của Masscan, tính linh hoạt của Nmap và sức mạnh của **trí tuệ nhân tạo (AI)**, mang đến một giải pháp quét mạng thế hệ mới.
+**PhantomSweep** is a Python-based network security scanner built for authorized penetration testing and security research. It combines asynchronous raw socket scanning with a plugin-based architecture and ML-powered OS fingerprinting.
 
-### ✨ Đặc điểm chính
+The project was built as an exercise in understanding low-level network scanning mechanics - from raw packet crafting to service detection - while exploring how machine learning can augment traditional fingerprinting techniques.
 
-<table>
-<tr>
-<td width="50%">
-
-#### ⚡ Siêu tốc
-
--   AsyncIO + Raw Sockets
--   Architecture Sender-Receiver riêng biệt
-
-</td>
-<td width="50%">
-
-#### 💾 Siêu nhẹ
-
--   Tối ưu bộ nhớ với Generators
--   Minimal dependencies
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-#### 🔌 Dễ mở rộng
-
--   Plugin-based architecture
--   Dynamic module loading
-
-</td>
-<td width="50%">
-
-#### 🤖 Thông minh
-
--   AI-powered OS fingerprinting
--   Evasion with AI
-
-</td>
-</tr>
-</table>
+> **Legal Notice**: PhantomSweep is intended for use on networks and systems you own or have explicit written permission to test. Unauthorized scanning is illegal.
 
 ---
 
-## 🎯 Mục tiêu dự án
+## ✨ Features
 
-Xây dựng một công cụ quét mạng chuyên nghiệp kết hợp:
+### Host Discovery
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  1️⃣  Hiệu suất cao      → Tiệm cận Masscan                     │
-│  2️⃣  Tính linh hoạt     → Cấu hình như Nmap                     │
-│  3️⃣  Kiến trúc mở rộng  → Plugin system                        │
-│  4️⃣  Khả năng AI        → Tích hợp các tính năng AI             │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Technique    | Scope             | Notes                         |
+| ------------ | ----------------- | ----------------------------- |
+| ARP Scan     | LAN only          | Fastest, no IP stack overhead |
+| ICMP Ping    | WAN-friendly      | Standard echo request/reply   |
+| TCP SYN Ping | Firewall-friendly | Useful when ICMP is filtered  |
 
-### 👥 Đối tượng người dùng
+### Port Scanning
 
-<div align="center">
+| Technique         | Stealth | Speed      | Reliability |
+| ----------------- | ------- | ---------- | ----------- |
+| TCP Connect       | ❌      | ⭐⭐⭐⭐   | ⭐⭐⭐⭐⭐  |
+| TCP SYN (Stealth) | ✅      | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐    |
+| UDP Scan          | ❌      | ⭐⭐⭐     | ⭐⭐⭐      |
 
-|         👨‍💼         |        🔒        |          🛡️           |           👨‍🎓           |
-| :----------------: | :--------------: | :-------------------: | :--------------------: |
-| **Network Admins** |  **Pentesters**  |    **Red Teamers**    | **Security Students**  |
-|   Quản trị mạng    | Kiểm thử bảo mật | Đội tấn công mô phỏng | Sinh viên an ninh mạng |
+### Analysis
 
-</div>
+- **Service & Version Detection** - Banner grabbing with probe matching
+- **AI OS Fingerprinting** - Scikit-learn classifier trained on Nmap OS database features
+- **Extension Scripts** - HTTP security headers checker; scriptable framework for custom checks
 
----
+### Output Formats
 
-## 🏗️ 4 Trụ cột công nghệ
+- `JSON`
+- `CSV`
+- `XML` (Nmap-compatible)
+- `Plain Text`
 
-### 1️⃣ **Fast** — _Siêu tốc_ ⚡
+### Evasion & Performance
 
-<details open>
-<summary><b>Các kỹ thuật tối ưu</b></summary>
-
--   🔥 **AsyncIO + Raw sockets**: Loại bỏ overhead hệ điều hành
--   🔄 **Sender-Receiver architecture**: Hai luồng riêng biệt, tránh block timeout
--   📦 **Pre-computed packet templates**: Giảm chi phí tạo gói tin
--   ⚙️ **Batch processing**: Xử lý hàng loạt hiệu quả
--   ⏱️ **Smart timeout**: Tối ưu thời gian chờ dựa trên phản hồi
-
-</details>
-
-> 📊 **Kết quả**: Ngang hàng và nhỉnh hơn T5 Nmap trong nhiều kịch bản mà còn chính xác hơn
-
-### 2️⃣ **Lightweight** — _Siêu nhẹ_ 💾
-
-<details open>
-<summary><b>Chiến Lược Tối Ưu Bộ Nhớ</b></summary>
-
--   🔄 **Generator-based processing**: Xử lý triệu IP mà không tràn RAM
--   📚 **Minimal dependencies**: Chỉ dùng thư viện cần thiết
--   🎯 **Core-focused**: Tập trung vào tính năng chính
--   🗂️ **Optimized data structures**: Sử dụng cấu trúc dữ liệu hiệu quả
-
-</details>
-
-> 📊 **Kết quả**: Kích thước khiêm tốn dù đã tích hợp AI
-
-### 3️⃣ **Scalable** — _Dễ mở rộng_ 🔌
-
-<details open>
-<summary><b>Kiến trúc module</b></summary>
-
--   🧩 **Plugin architecture**: Thêm scanner, analyzer, reporter, script mà không sửa core
--   🔄 **Dynamic module loading**: Tự động phát hiện và tải module
--   🎨 **Module base classes**: Interface rõ ràng để implement modules
--   🔒 **Separation of concerns**: Mỗi module độc lập, dễ test
-
-</details>
-
-> 📊 **Kết quả**: Cộng đồng dễ dàng đóng góp plugins mới
-
-### 4️⃣ **Smart** — _Thông minh_ 🤖
-
-<details open>
-<summary><b>Tính năng AI/ML</b></summary>
-
--   🧠 **AI OS Fingerprinting**: Nhận dạng hệ điều hành bằng ML models
--   🎯 **AI evasion techniques**: Lựa chọn chiến thuật Evasion tự động bằng RL
-
-</details>
-
-> 📊 **Kết quả**: Nhận diện OS với độ chính xác cao, lẫn tránh IDS/IPS tốt
+- Packet fragmentation, decoy generation, randomized scan order
+- Configurable timing profiles: `stealthy` / `balanced` / `fast` / `insane`
+- Adjustable thread count and per-probe timeout
 
 ---
 
-## ✨ Các Tính Năng
+## 📦 Installation
 
-### 🔍 Host discovery — _Trinh sát host_
-
-| Kỹ Thuật         | Tốc Độ     | Độ Chính Xác | Phạm Vi           |
-| ---------------- | ---------- | ------------ | ----------------- |
-| **ARP Scan**     | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐   | LAN only          |
-| **ICMP Ping**    | ⭐⭐⭐⭐   | ⭐⭐⭐⭐     | WAN-friendly      |
-| **TCP SYN Ping** | ⭐⭐⭐     | ⭐⭐⭐⭐     | Firewall-friendly |
-
-### 🔌 Port scanning — _Quét cổng_
-
-| Kỹ Thuật              | Stealth | Tốc Độ     | Độ Tin Cậy |
-| --------------------- | ------- | ---------- | ---------- |
-| **TCP Connect**       | ❌      | ⭐⭐⭐⭐   | ⭐⭐⭐⭐⭐ |
-| **TCP SYN (Stealth)** | ✅      | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐   |
-| **UDP Scan**          | ❌      | ⭐⭐⭐     | ⭐⭐⭐     |
-
-### 🔬 Service & Version detection — _Phát hiện dịch vụ_
-
--   ✅ **Normal Mode**: Banner grabbing, service probe matching
--   📊 **Precision**: Tỷ lệ phát hiện chính xác ~ Nmap
-
-### 🖥️ OS Fingerprinting — _Nhận dạng hệ điều hành_
-
--   🤖 **AI Mode**: Deep learning models trên Nmap OS database
--   📈 **Coverage**: Nhận dạng OS với độ chính xác cao ~ Nmap
-
-### 🥷 Evasion Techniques — _Kỹ thuật né tránh_
-
-<table>
-<tr><td>📦 Packet fragmentation</td><td>🎭 Idle zombies scan</td></tr>
-<tr><td>🎯 Decoy generation</td><td>⏱️ Custom timing profiles</td></tr>
-<tr><td colspan="2" align="center">🔀 User-agent spoofing</td></tr>
-</table>
-
-### 📄 Output Formats — _Định dạng xuất_
-
-|   Format    | Description                | Use Case                      |
-| :---------: | -------------------------- | ----------------------------- |
-| **CSV** 📊  | Comma-separated values     | Import vào Excel/Spreadsheets |
-| **JSON** 🔧 | JavaScript Object Notation | Parse programmatically        |
-| **XML** 📝  | Extensible Markup Language | Tương thích Nmap parsers      |
-| **Text** 📄 | Plain text                 | Human-readable reports        |
-
-### 🔧 Extension scripts — _Scripts mở rộng_
-
--   ✅ HTTP Security Headers checker
--   ⏳ SSL/TLS validation _(not implemented yet)_
--   ⏳ Custom vulnerability checks _(not implemented yet)_
-
----
-
-## 📦 Yêu cầu & Cài đặt
-
-### ⚙️ Yêu cầu hệ thống
-
-<table>
-<tr>
-<td><b>🐍 Python</b></td>
-<td>3.10 trở lên (recommend 3.13+)</td>
-</tr>
-<tr>
-<td><b>💻 OS</b></td>
-<td>Linux (Windows cần WSL2)</td>
-</tr>
-<tr>
-<td><b>🔐 Quyền</b></td>
-<td>Root/sudo (để sử dụng raw sockets, khuyến khích trong mọi trường hợp)</td>
-</tr>
-</table>
-
-### 🚀 Cài đặt
-
-**Bước 1: Clone repository**
+**Requirements**: Python 3.10+, Linux or WSL2, root/sudo privileges (required for raw sockets)
 
 ```bash
-# Clone từ GitHub
 git clone https://github.com/cyb3rhurr1c4n3/phantom-sweep.git
 cd phantom-sweep
-```
-
-**Bước 2: Tạo Virtual Environment (venv)**
-
-```bash
-# Tạo và kích hoạt virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-**Bước 3: Cài dependencies**
-
-```bash
-# Cài đặt các thư viện cần thiết
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-**Bước 4: Kiểm tra lại quá trình cài đặt**
-
-```bash
-# Kiểm tra cài đặt thành công
 sudo python phantom.py --help
 ```
 
-### 📚 Dependencies
+<details> <summary><b>Dependencies</b></summary>
 
-<details>
-<summary><b>Danh sách thư viện</b></summary>
-
-| Library          | Purpose                 | Version |
-| ---------------- | ----------------------- | :-----: |
-| `colorama`       | Colored terminal output | Latest  |
-| `pyfiglet`       | ASCII art banners       | Latest  |
-| `scapy`          | Packet manipulation     | Latest  |
-| `paramiko`       | SSH operations          | Latest  |
-| `requests`       | HTTP requests           | Latest  |
-| `beautifulsoup4` | HTML parsing            | Latest  |
-| `joblib`         | Parallel processing     | Latest  |
-| `numpy`          | Numerical computing     | Latest  |
-| `scikit-learn`   | Machine learning models | Latest  |
+| Library          | Purpose                                   |
+| ---------------- | ----------------------------------------- |
+| `scapy`          | Packet crafting and raw socket operations |
+| `scikit-learn`   | ML model for OS fingerprinting            |
+| `numpy`          | Feature vector processing                 |
+| `joblib`         | Model serialization and parallel jobs     |
+| `requests`       | HTTP probing for extension scripts        |
+| `beautifulsoup4` | HTML parsing in scripts                   |
+| `paramiko`       | SSH banner grabbing                       |
+| `colorama`       | Terminal color output                     |
+| `pyfiglet`       | Banner rendering                          |
 
 </details>
 
 ---
 
-## 📖 Hướng dẫn sử dụng
+## 📖 Usage
 
---> Note cho team: bổ sung video demo vào đây
-
-### 💻 Cú pháp cơ bản
-
-```bash
-┌─────────────────────────────────────────────┐
-│  sudo python phantom.py [TARGET] [OPTIONS]  │
-└─────────────────────────────────────────────┘
+```
+sudo python phantom.py [TARGET] [OPTIONS]
 ```
 
-### 🎯 Ví dụ thông dụng và demo
-
-#### **Example 1** — Super Fast Discovery & Scanning (ICMP + TCP Connect) - Default
+### Common Examples
 
 ```bash
+# Default scan (ICMP discovery + TCP Connect, top 1000 ports)
 sudo python phantom.py scanme.nmap.org
-```
 
-https://github.com/user-attachments/assets/2398e2c1-0fe3-4b56-b36e-a16edad448ba
+# Host discovery only
+sudo python phantom.py 192.168.1.0/24 --ping-tech icmp --scan-tech none
 
-#### **Example 2** — Fast Host Discovery (ICMP)
+# Stealth SYN scan on specific ports
+sudo python phantom.py 10.0.0.1 --scan-tech stealth --port 22,80,443,8080
 
-```bash
-sudo python phantom.py scanme.nmap.org --ping-tech icmp --scan-tech none
-```
+# Service detection + AI OS fingerprinting
+sudo python phantom.py scanme.nmap.org --service-detection-mode normal --os-fingerprinting-mode ai
 
-https://github.com/user-attachments/assets/66e971e4-6476-4a05-9153-8769d47ef727
-
-#### **Example 3** — Fast Host Discovery (ARP)
-
-```bash
-sudo python phantom.py scanme.nmap.org --ping-tech arp --scan-tech none
-```
-
-https://github.com/user-attachments/assets/0f40fc89-9552-472c-b7f1-3c38f48eecb9
-
-#### **Example 4** — Quét 100 ports phổ biến nhất
-
-```bash
-sudo python phantom.py scanme.nmap.org --port top_100  
-```
-
-https://github.com/user-attachments/assets/59be7b48-7e0c-4bab-b0f3-4ff6f9942bb7
-
-#### **Example 5** — Service & Version Detection
-
-```bash
-sudo python phantom.py scanme.nmap.org --service-detection-mode normal
-```
-
-https://github.com/user-attachments/assets/3f4810c6-a1e9-44bd-92ad-394ba4edd107
-
-#### **Example 6** — AI OS Fingerprinting
-
-```bash
-sudo python phantom.py scanme.nmap.org --os-fingerprinting-mode ai
-```
-
-https://github.com/user-attachments/assets/1034ef43-259e-4017-ab64-97f24944afbf
-
-#### **Example 7** — Custom Extension Scripts
-
-```bash
+# Run extension script
 sudo python phantom.py scanme.nmap.org --script http_headers
+
+# Export results
+sudo python phantom.py scanme.nmap.org --output json --output-file results
 ```
 
-https://github.com/user-attachments/assets/bfbad2f6-3f2e-4d5d-8101-9d2be1b8a368
+### Key Options
 
-#### **Example 8** — Xuất kết quả ra file
+| Option                     | Values                                           | Default    | Description               |
+| -------------------------- | ------------------------------------------------ | ---------- | ------------------------- |
+| `--ping-tech`              | `arp`, `icmp`, `tcp`, `none`                     | `icmp`     | Host discovery technique  |
+| `--scan-tech`              | `connect`, `stealth`, `udp`, `none`              | `connect`  | Port scan method          |
+| `--port`                   | `top_100`, `top_1000`, `all`, `80,443`, `1-1000` | `top_1000` | Port specification        |
+| `--service-detection-mode` | `normal`, `none`                                 | `none`     | Service/version detection |
+| `--os-fingerprinting-mode` | `ai`, `normal`, `none`                           | `none`     | OS fingerprinting         |
+| `--rate`                   | `stealthy`, `balanced`, `fast`, `insane`         | `balanced` | Timing profile            |
+| `--thread`                 | integer                                          | `10`       | Concurrent workers        |
+| `--evasion-mode`           | `randomize`, `fragment`, `decoy`                 | `none`     | Evasion techniques        |
+| `--output`                 | `json`, `csv`, `xml`, `text`                     | `none`     | Export format             |
 
-```bash
-sudo python phantom.py scanme.nmap.org --output json --output-file json_result
-sudo python phantom.py scanme.nmap.org --output csv --output-file csv_result
+<details> <summary><b>Full option reference</b></summary>
+
+```
+usage: phantom [--version] [--help] [--example]
+               [--host-list FILENAME] [--exclude-host HOST [HOST ...]]
+               [--port PORT] [--port-list FILENAME] [--exclude-port PORT [PORT ...]]
+               [--ping-tech {arp,icmp,tcp,tcp-ping-scapy,none}]
+               [--scan-tech {connect,stealth,udp,none}]
+               [--service-detection-mode {normal,none}]
+               [--os-fingerprinting-mode {ai,normal,none}]
+               [--script SCRIPT [SCRIPT ...]]
+               [--rate {stealthy,balanced,fast,insane}]
+               [--thread NUM] [--timeout SECONDS]
+               [--evasion-mode TECHNIQUE [TECHNIQUE ...]]
+               [--output {csv,json,text,xml,none}] [--output-file FILENAME]
+               [--verbose] [--debug] [--all-ports]
+               [HOST ...]
 ```
 
-##### Đầu ra JSON ví dụ:
+</details>
+
+### Sample JSON Output
 
 ```json
 {
-  "hosts": {
-    "45.33.32.156": {
-      "host": "45.33.32.156",
-      "state": "up",
-      "os": null,
-      "os_version": "unknown",
-      "os_accuracy": null,
-      "tcp_ports": {
-        "26": {
-          "port": 26,
-          "state": "closed",
-          "service": null,
-          "version": null,
-          "banner": null
-        },
-        "99": {
-          "port": 99,
-          "state": "closed",
-          "service": null,
-          "version": null,
-          "banner": null
-        },
-        "8002": {
-          "port": 8002,
-          "state": "closed",
-          "service": null,
-          "version": null,
-          "banner": null
-        }
-      },
-      "udp_ports": {},
-      "scripts": {}
-    }
-  },
-  "statistics": {
-    "total_hosts": 1,
-    "up_hosts": 1,
-    "total_ports_scanned": 1000,
-    "open_ports": 4
-  },
-  "metadata": {
-    "scan_start_time": "2025-12-24T12:08:55.171810",
-    "scan_end_time": "2025-12-24T12:08:56.615795",
-    "scan_duration": 1.443985,
-    "scan_config": {
-      "targets": {
-        "hosts": [
-          "45.33.32.156"
-        ],
-        "host_count": 1,
-        "exclude_hosts": []
-      },
-      "ports": {
-        "port_spec": "top_1000",
-        "port_list_file": null,
-        "exclude_ports": null
-      },
-      "pipeline": {
-        "ping_tech": "icmp",
-        "scan_tech": "connect",
-        "service_detection_mode": "none",
-        "os_fingerprinting_mode": "none",
-        "scripts": []
-      },
-      "performance": {
-        "rate": "balanced",
-        "thread": 50,
-        "timeout": 1.0,
-        "evasion_mode": []
-      }
-    }
-  }
+	"hosts": {
+		"45.33.32.156": {
+			"host": "45.33.32.156",
+			"state": "up",
+			"os": null,
+			"os_version": "unknown",
+			"tcp_ports": {
+				"22": {
+					"port": 22,
+					"state": "open",
+					"service": "ssh",
+					"version": null,
+					"banner": null
+				},
+				"80": {
+					"port": 80,
+					"state": "open",
+					"service": "http",
+					"version": null,
+					"banner": null
+				},
+				"9929": {
+					"port": 9929,
+					"state": "open",
+					"service": null,
+					"version": null,
+					"banner": null
+				}
+			},
+			"udp_ports": {},
+			"scripts": {}
+		}
+	},
+	"statistics": {
+		"total_hosts": 1,
+		"up_hosts": 1,
+		"total_ports_scanned": 1000,
+		"open_ports": 4
+	},
+	"metadata": {
+		"scan_start_time": "2025-12-24T12:08:55.171810",
+		"scan_end_time": "2025-12-24T12:08:56.615795",
+		"scan_duration": 1.443985
+	}
 }
 ```
 
-##### Đầu ra CSV ví dụ:
+---
+
+## 🏗️ Architecture
 
 ```
-45.33.32.156,up,,unknown,,80,TCP,open,,,
-,,,,,22,TCP,open,,,
-,,,,,31337,TCP,open,,,
-,,,,,9929,TCP,open,,,
+phantom-sweep/
+├── core/
+│   ├── context.py          # Scan state management
+│   ├── constants.py        # Global constants
+│   ├── parsers.py          # Input parsing (targets, ports)
+│   └── result.py           # Result data structures
+├── model/                  # ML models and supporting assets
+├── module/
+│   ├── manager.py          # Plugin loader & scan pipeline
+│   ├── _base/              # Abstract base classes
+│   ├── scanner/
+│   │   ├── discovery/      # ARP, ICMP, TCP SYN ping
+│   │   └── port/           # TCP Connect, TCP SYN, UDP
+│   ├── analyzer/
+│   │   ├── os_detection/   # AI and TTL/window-based fingerprinting
+│   │   └── service/        # Banner grabbing, probe matching
+│   ├── reporter/           # CSV, JSON, XML, Text exporters
+│   └── scripting/          # Extension scripts (http_headers, ...)
+└── phantom_cli.py          # CLI entry point
 ```
 
-#### **Example 9** — AI Evasion Techniques
+**Design principles:**
 
---> Note cho team: Bổ sung
-
-#### **Example 10** — Tùy chỉnh performance
-
-```bash
-sudo python phantom.py scanme.nmap.org --rate insane --thread 100 --timeout 10
-```
-
-### ⚙️ Các tùy chọn chính
-
-<details>
-<summary><b>📋 Full Command Options (Click to expand)</b></summary>
-
-```
-usage: phantom [--version] [--help] [--example] [--host-list FILENAME] [--exclude-host HOST [HOST ...]] [--port PORT]
-               [--port-list FILENAME] [--exclude-port PORT [PORT ...]] [--ping-tech {arp,icmp,tcp,tcp-ping-scapy,none}]
-               [--scan-tech {connect,stealth,udp,none}] [--service-detection-mode {ai,normal,none}]
-               [--os-fingerprinting-mode {ai,normal,none}] [--script SCRIPT [SCRIPT ...]] [--rate {stealthy,balanced,fast,insane}]
-               [--thread NUM] [--timeout SECONDS] [--evasion-mode TECHNIQUE [TECHNIQUE ...]] [--output {csv,json,text,xml,none}]
-               [--output-file FILENAME] [--verbose] [--debug] [--all-ports]
-               [HOST ...]
-
-PhantomSweep - A fast, lightweight, scalable and smart network security scanner
-
-:#################### GENERAL ####################:
-  Some general options
-
-  --version             Show program's version number and exit
-  --help                Show this help message and exit
-  --example             Show detailed examples
-
-:#################### HOST SPECIFICATION ####################:
-  Specify hosts to scan. At least one host source is required.
-
-  HOST                  Target host(s) to scan. Can be:
-                                    - Single IP: 192.168.1.1
-                                    - Multiple IPs: 192.168.1.1 192.168.1.2
-                                    - IP range: 192.168.1.1-100 or 192.168.1.1-192.168.1.100
-                                    - CIDR block: 192.168.1.0/24
-                                    - Domain name: scanme.nmap.org
-  --host-list FILENAME  Read targets from file (one per line). Required if HOST is not specified.
-  --exclude-host HOST [HOST ...]
-                        Exclude HOST(s) from scan. Same format as --host.
-
-:#################### PORT SPECIFICATION ####################:
-  Specify which ports to scan.
-
-  --port PORT           Port(s) to scan (default: top_100). Can be:
-                                    - top_100: Scan 100 most common ports
-                                    - top_1000: Scan 1000 most common ports
-                                    - all: Scan all 65535 ports
-                                    - Specific: 80,443,8080
-                                    - Range: 1-1000
-                                    - Combined: 80,443,1000-2000
-  --port-list FILENAME  Read port from file (one per line).
-  --exclude-port PORT [PORT ...]
-                        Exclude port(s) from scan. Same format as --port.
-
-:#################### SCAN PINELINE ####################:
-  Configure which technique to use, which step is enable or disable, bla bla
-
-  --ping-tech {arp,icmp,tcp,tcp-ping-scapy,none}
-                        Host discovery technique (default: icmp):
-                                    - arp: ARP Scan (Ultra-fast, local network only)
-                                    - icmp: ICMP Echo Request (Ping) Discovery
-                                    - tcp-ping-scapy: TCP SYN Ping (Scapy-based, easier, slower)
-                                    - tcp: TCP SYN Ping Discovery (fast, firewall-friendly) - FIXED
-                                    - none: Skip discovery (assume all hosts are up)
-  --scan-tech {connect,stealth,udp,none}
-                        Port scanning technique (default: connect):
-                                    - connect: TCP Connect Scan (async, fast, service-compatible)
-                                    - stealth: TCP SYN Scan (stealth scan, ultra-fast)
-                                    - udp: UDP Scan (async, ICMP-aware, service probes)
-                                    - none: Skip port scanning
-  --service-detection-mode {ai,normal,none}
-                        Service detection mode (default: none):
-                                    - ai: AI-powered service and version detection
-                                    - normal: Banner-based detection
-                                    - none: Disable service detection
-  --os-fingerprinting-mode {ai,normal,none}
-                        OS fingerprinting mode (default: none):
-                                    - ai: AI-powered OS detection
-                                    - normal: TTL/Window size-based detection
-                                    - none: Disable OS fingerprinting
-  --script SCRIPT [SCRIPT ...]
-                        Run one or more extension scripts:
-                                    - http_headers: Check HTTP headers for web services
-                                    - all: Run all available scripts
-
-:#################### PERFORMANCE AND EVASION ####################:
-  Control scan speed and evasion techniques.
-
-  --rate {stealthy,balanced,fast,insane}
-                        Scan rate/timing template (default: balanced):
-                                    - stealthy: Slow, AI-adaptive timing (evade IDS/IPS)
-                                    - balanced: Balanced speed and accuracy (Nmap T3-like)
-                                    - fast: Fast scan (Nmap T4-like)
-                                    - insane: Maximum speed (Masscan-like)
-  --thread NUM          Number of concurrent thread/workers (default: 10). Higher = faster but more resource usage.
-  --timeout SECONDS     Timeout in seconds for each probe (default: 5.0). AI may auto-adjust if --rate stealthy.
-  --evasion-mode TECHNIQUE [TECHNIQUE ...]
-                        Evasion techniques (can combine multiple):
-                                    - randomize: Randomize host and port order
-                                    - fragment: Fragment packets
-                                    - decoy: Use decoy IPs
-                                    - spoof: Spoof source IP
-                                    - ai: AI-powered adaptive evasion
-                                    - none: No evasion (default)
-
-
-:#################### OUTPUT FORMAT ####################:
-  Specify how your output should be format.
-
-  --output {csv,json,text,xml,none}
-                        Export to file format (default: none):
-                                    - csv: CSV format (spreadsheet-compatible)
-                                    - json: JSON format (machine-readable)
-                                    - text: Human-readable text format
-                                    - xml: Nmap-compatible XML format
-                                    - none: only print to screen
-  --output-file FILENAME
-                        Save output to file. If not specified, results are printed to console.
-
-:#################### MISCELLANEOUS ####################:
-  --verbose             Increase verbosity level (show detailed progress and information)
-  --debug               Enable debug mode (show detailed error messages and stack traces)
-  --all-ports           Show all port states (closed, filtered, open) in results
-```
-
-</details>
-
-### 📚 Quick references
-
-```bash
-# Xem tất cả options
-sudo python phantom.py --help
-
-# Xem ví dụ sử dụng
-sudo python phantom.py --example
-```
+- **Sender/Receiver separation** - prevents timeout blocking during high-rate scans
+- **Generator-based processing** - constant memory footprint regardless of target range size
+- **Plugin architecture** - scanners, analyzers, reporters, and scripts are dynamically loaded; new modules require no changes to core
 
 ---
 
-## 🏗️ Kiến trúc hệ thống
+## 📊 Performance
 
-### 📂 System architecture
+Tested against `scanme.nmap.org` on a standard home connection (100 Mbps, i5-13500H):
 
-```plaintext
-📦 PhantomSweep/
-├── Core Engine (core/)
-│  ├── Scan Context      - Quản lý trạng thái quét
-│  ├── Constants         - Hằng số toàn cục
-│  ├── Parsers           - Parse dữ liệu đầu vào
-│  └── Scan Result       - Cấu trúc dữ liệu kết quả
-│
-|── AI Model (model/)    - Các model AI và tài nguyên hỗ trợ
-|
-├── Module System (module/)
-│  ├── Manager           - Plugin loader và quản lý scanpipeline
-│  ├── Base (_base/)     - Các base class hỗ trợ tính chất Scalable
-│  ├── Scanner           - Các kỹ thuật quét
-│  │  ├── Host Discovery
-│  │  │  ├── ARP Scan
-│  │  │  ├── ICMP Ping
-│  │  │  └── TCP SYN Ping
-│  │  └── Port Scanning
-│  │     ├── TCP Connect
-│  │     ├── TCP SYN
-│  │     └── UDP Scan
-│  ├── Analyzer          - Phân tích kết quả
-│  │  ├── OS Detection   (AI)
-│  │  └── Service Detect (Normal)
-│  ├── Reporter          - Xuất báo cáo
-│  │  ├── CSV, JSON, XML, Text
-│  └── Scripting         - Custom scripts
-│      └── HTTP Headers Check
-│
-└── CLI Interface (phantom_cli.py)
-```
+| Config                                   | PhantomSweep | Nmap equivalent |
+| ---------------------------------------- | ------------ | --------------- |
+| Top 1000 ports, ICMP + Connect, balanced | ~1.5s        | T3: ~3–5s       |
+| Top 1000 ports, ICMP + Connect, fast     | ~0.8s        | T4: ~1–2s       |
+| Top 1000 ports, SYN stealth, insane      | ~0.5s        | T5: ~0.5–1s     |
+
+> Results vary significantly by network conditions and target responsiveness. These figures reflect single-host scans and should not be extrapolated to large subnet scanning without independent testing.
 
 ---
 
-## 👥 Thành viên dự án
+## 🗺️ Roadmap
 
-<div align="center">
+### v1.1
 
-### 🎓 Cyber_Threat Group - UIT
+- [ ] AI-powered adaptive evasion (RL-based timing selection)
+- [ ] SSL/TLS validation script
+- [ ] Benchmark suite for reproducible performance testing
 
-_Dự án được thực hiện bởi 4 thành viên sinh viên_  
-_Trường Đại học Công nghệ Thông tin, ĐHQG TP.HCM_
+### v1.2
 
-</div>
+- [ ] IPv6 support
+- [ ] Custom vulnerability check scripts
+- [ ] Nmap NSE-compatible script interface
 
-### 📊 Phân công công việc
+### Long-term
 
-| Thành Viên            | Đóng góp (%) | Đóng Góp Chính |
-| --------------------- | ------------ | -------------- |
-| Hà Sơn Bin            |              |                |
-| Võ Quốc Bảo           |              |                |
-| Nguyễn Đoàn Gia Khánh |              |                |
-| Lê Quốc Khôi          |              |                |
-
----
-
-## 📈 Tính năng hoàn thành
-
-### ✅ Phase 1: Core Features
-
--   [x] CLI Framework & Help System
--   [x] ARP Scan
--   [x] ICMP Ping Discovery
--   [x] TCP SYN Ping
--   [x] TCP Connect Scan
--   [x] UDP Scan
--   [x] Basic Service Detection
--   [x] Output Formats (JSON, CSV, XML, Text)
-
-### ✅ Phase 2: Advanced Features
-
--   [x] AI OS Fingerprinting
--   [x] Service Detection (Normal & AI modes)
--   [x] Evasion Timing Templates
--   [x] Custom Scripting Framework
--   [x] HTTP Headers Check Script
--   [x] Plugin Architecture & Dynamic Loading
-
-### ✅ Phase 3: Optimization & Polish
-
--   [x] Performance Tuning
--   [x] Memory Optimization (Generators)
--   [x] Comprehensive Error Handling
--   [x] Full Documentation
--   [x] Code Comments & Docstrings
+- [ ] Web UI for scan management and result visualization
+- [ ] gRPC API for integration with other tooling
 
 ---
 
-## 🤝 Đóng góp
+## ⚖️ License & Disclaimer
 
-> 💡 Chúng tôi hoan nghênh mọi đóng góp từ cộng đồng!
+Released under the **MIT License**. See [LICENSE](LICENSE) for details.
 
-### 📝 Cách đóng góp
-
-1. Fork dự án
-2. Tạo Feature Branch: `git checkout -b feature/AmazingFeature`
-3. Commit thay đổi: `git commit -m 'Add AmazingFeature'`
-4. Push lên branch: `git push origin feature/AmazingFeature`
-5. Mở Pull Request
-
----
-
-## 📜 Giấy phép & Tuyên bố miễn trừ
-
-### ⚖️ Giấy Phép
-
-Dự án này được phát hành dưới giấy phép **MIT License**.
-
-```
-MIT License
-
-Copyright (c) 2024 Cyber_Threat Group - UIT
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
-
-### ⚠️ Tuyên bố miễn trừ
-
-**CẢNH BÁO**: PhantomSweep là công cụ được thiết kế cho mục đích **giáo dục** và **kiểm thử bảo mật được ủy quyền** (authorized penetration testing).
-
-**Trách nhiệm pháp lý**:
-
-1. **Chỉ sử dụng trên các hệ thống được ủy quyền**: Bất kỳ hoạt động quét mạng trái phép vào hệ thống không được phép là bất hợp pháp theo pháp luật.
-
-2. **Không chịu trách nhiệm**: Tác giả và những người đóng góp không chịu trách nhiệm cho:
-
-    - Bất kỳ hành vi sử dụng sai trái nào
-    - Thiệt hại do công cụ gây ra
-    - Vi phạm pháp luật của người dùng
-
-3. **Tuân thủ pháp luật**: Người dùng phải tuân thủ các luật pháp địa phương về:
-
-    - Kiểm thử bảo mật
-    - Bảo vệ dữ liệu cá nhân
-    - Quyền riêng tư
-
-4. **Sử dụng có trách nhiệm**:
-    - Luôn lấy sự cho phép bằng văn bản trước khi quét
-    - Giữ bí mật thông tin phát hiện được
-    - Báo cáo lỗ hổng một cách có trách nhiệm (responsible disclosure)
-
----
-
-## 🎓 Thông tin đồ án
-
-<div align="center">
-
-| 📌 Thông Tin   | 📝 Chi Tiết                         |
-| -------------- | ----------------------------------- |
-| **Môn Học**    | NT140 - An toàn mạng                |
-| **Trường**     | Đại học Công nghệ Thông tin (UIT)   |
-| **Đại học**    | Đại học Quốc gia TP.HCM             |
-| **Năm Học**    | 2024                                |
-| **Nhóm**       | Cyber_Threat Group (4 thành viên)   |
-| **Giảng viên** | Trần Tuấn Dũng (thầy Dũng đẹp trai) |
-
-</div>
-
----
-
-## 📞 Liên hệ & hỗ trợ
-
-<div align="center">
-
-|      Channel       | Link                                                                               |
-| :----------------: | ---------------------------------------------------------------------------------- |
-|   🐛 **Issues**    | [Báo cáo bugs](https://github.com/cyb3rhurr1c4n3/phantom-sweep/issues)             |
-| 💬 **Discussions** | [Thảo luận tính năng](https://github.com/cyb3rhurr1c4n3/phantom-sweep/discussions) |
-|    📧 **Email**    | 23520146@gm.uit.edu.vn (Võ Quốc Bảo - Leader)                                      |
-
-</div>
+**Disclaimer**: This tool is intended solely for authorized security testing and educational purposes. The authors assume no liability for misuse or for any damages resulting from use of this software. Users are solely responsible for complying with applicable laws.
 
 ---
 
 <div align="center">
 
-### 💙 Made with Love
-
-**Developed with ❤️ by Cyber_Threat Group - UIT**
-
-_Last Updated: December 2025_
-
-⭐ _If you find this project useful, please consider giving it a star!_ ⭐
+**PhantomSweep** - Built by [Cyber_Threat Group](https://github.com/cyb3rhurr1c4n3) · UIT, Vietnam · 2025
 
 </div>
